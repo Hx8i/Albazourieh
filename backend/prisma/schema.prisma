@@ -1,0 +1,230 @@
+// Albazourieh — Post-War Damage Assessment & Recovery Platform
+// Database: Supabase (PostgreSQL) via Prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────── Enums ───────────────────────────────
+
+enum PropertyType {
+  // Consolidated categories used by the current two-card wizard.
+  BUILDING
+  VEHICLE
+  // Legacy values kept so historical rows remain readable.
+  HOUSE
+  APARTMENT
+  LAND
+  SHOP
+  CAR
+  MOTORCYCLE
+}
+
+enum OwnershipStatus {
+  OWNER
+  TENANT
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  APPROVED
+  REJECTED
+}
+
+enum DamageSeverity {
+  TOTAL
+  PARTIAL
+  MINOR
+}
+
+/// Two-tier hierarchy: SUPER_ADMIN (Mas2ool El Baladye — owns staff
+/// management) and STAFF_MEMBER (auditors / field inspectors).
+enum MunicipalityRole {
+  SUPER_ADMIN
+  STAFF_MEMBER
+}
+
+enum AttachmentType {
+  PHOTO
+  DOCUMENT
+}
+
+enum Language {
+  AR
+  EN
+}
+
+// ─────────────────────────────── Models ──────────────────────────────
+
+/// Citizen account. Authentication is phone-number based (OTP-ready):
+/// the otpCode/otpExpiresAt pair backs a one-time-password login flow.
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  phoneNumber       String    @unique @db.VarChar(20)
+  fullName          String    @db.VarChar(120)
+  preferredLanguage Language  @default(AR)
+  isPhoneVerified   Boolean   @default(false)
+  otpCode           String?   @db.VarChar(10)
+  otpExpiresAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  properties Property[]
+  reports    DamageReport[]
+
+  @@map("users")
+}
+
+/// The damaged asset. Coordinates are captured on the citizen's phone
+/// via the HTML5 Geolocation API and are critical for field inspection.
+model Property {
+  id               String           @id @default(uuid()) @db.Uuid
+  type             PropertyType
+  ownershipStatus  OwnershipStatus?
+  realEstateNumber String?          @db.VarChar(60)
+  /// Vehicle sub-type for VEHICLE reports: CAR/TRUCK/TRACTOR/BUS/VAN/OTHER.
+  vehicleType      String?          @db.VarChar(30)
+  /// Free-text description when vehicleType is OTHER.
+  vehicleTypeOther String?          @db.VarChar(120)
+  /// Tenant submissions may share the landlord's phone (optional).
+  ownerPhoneNumber String?          @db.VarChar(20)
+  district         String?          @db.VarChar(120)
+  /// Kept in sync with `street` so dashboard filters/map keep working.
+  neighborhood     String       @db.VarChar(120)
+  // v2 deep-precision location fields.
+  street               String?  @db.VarChar(120)
+  projectName          String?  @db.VarChar(120)
+  floor                String?  @db.VarChar(30)
+  additionalDirections String?  @db.VarChar(255)
+  addressLine      String?      @db.VarChar(255)
+  latitude         Float
+  longitude        Float
+  ownerId          String       @db.Uuid
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  reports DamageReport[]
+
+  @@index([district])
+  @@index([neighborhood])
+  @@index([latitude, longitude])
+  @@map("properties")
+}
+
+/// One damage claim filed by a citizen (or by a relative acting as a
+/// proxy for an elderly person — see submittedByProxy/proxyName/proxyRelation).
+model DamageReport {
+  id               String         @id @default(uuid()) @db.Uuid
+  description      String
+  voiceNoteUrl     String?        @db.VarChar(2048)
+  status           ReportStatus   @default(PENDING)
+  severity         DamageSeverity
+  submittedByProxy Boolean        @default(false)
+  proxyName        String?        @db.VarChar(120)
+  proxyRelation    String?        @db.VarChar(60)
+  proxyPhoneNumber String?        @db.VarChar(20)
+  rejectionReason  String?
+  reporterId       String         @db.Uuid
+  propertyId       String         @db.Uuid
+  reviewedById     String?        @db.Uuid
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  reporter       User              @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  property       Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reviewedBy     MunicipalityUser? @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  attachments    Attachment[]
+  inspectionLogs InspectionLog[]
+
+  @@index([status])
+  @@index([severity])
+  @@index([status, severity])
+  @@index([createdAt])
+  @@map("damage_reports")
+}
+
+/// Uploaded proof: photos of the damage or ownership documents.
+model Attachment {
+  id        String         @id @default(uuid()) @db.Uuid
+  url       String         @db.VarChar(2048)
+  type      AttachmentType
+  /// What the file proves: DAMAGE_PHOTO, NATIONAL_ID, PROPERTY_DEED,
+  /// RENTAL_CONTRACT, VEHICLE_REGISTRATION, VEHICLE_PHOTO, RESIDENCY_PROOF
+  label     String?        @db.VarChar(60)
+  mimeType  String?        @db.VarChar(100)
+  sizeBytes Int?
+  reportId  String         @db.Uuid
+  createdAt DateTime       @default(now())
+
+  report DamageReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("attachments")
+}
+
+/// Internal municipality staff account.
+model MunicipalityUser {
+  id               String           @id @default(uuid()) @db.Uuid
+  email            String           @unique @db.VarChar(255)
+  passwordHash     String           @db.VarChar(255)
+  fullName         String           @db.VarChar(120)
+  role             MunicipalityRole @default(STAFF_MEMBER)
+  municipalityName String           @db.VarChar(120)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  reviewedReports DamageReport[]
+  inspectionLogs  InspectionLog[]
+  auditLogs       AuditLog[]
+
+  @@map("municipality_users")
+}
+
+/// "تتبع العمليات" — immutable trail of every administrative mutation:
+/// who did what, to which record, from where, and when.
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  adminId    String   @db.Uuid
+  /// Cached so the trail renders without joins and survives staff renames.
+  adminName  String   @db.VarChar(120)
+  /// CREATE_STAFF | DELETE_STAFF | UPDATE_REPORT_STATUS | EXPORT_DATA
+  actionType String   @db.VarChar(40)
+  targetId   String   @db.VarChar(60)
+  details    String
+  ipAddress  String?  @db.VarChar(45)
+  createdAt  DateTime @default(now())
+
+  admin MunicipalityUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([adminId])
+  @@map("audit_logs")
+}
+
+/// Audit trail of official engineer field visits.
+model InspectionLog {
+  id                String         @id @default(uuid()) @db.Uuid
+  reportId          String         @db.Uuid
+  inspectorId       String         @db.Uuid
+  visitDate         DateTime
+  structuralNotes   String
+  estimatedCostUsd  Decimal        @db.Decimal(12, 2)
+  confirmedSeverity DamageSeverity
+  createdAt         DateTime       @default(now())
+
+  report    DamageReport     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  inspector MunicipalityUser @relation(fields: [inspectorId], references: [id], onDelete: Restrict)
+
+  @@index([reportId])
+  @@map("inspection_logs")
+}

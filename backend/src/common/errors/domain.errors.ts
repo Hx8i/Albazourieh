@@ -1,0 +1,191 @@
+/**
+ * Framework-agnostic domain errors. Services throw these; the global
+ * exception filter is the single place that maps them to HTTP responses,
+ * keeping business logic decoupled from the transport layer.
+ *
+ * Every error carries a bilingual message pair — `message` (English) and
+ * `messageAr` (Arabic) — so clients can show clean, user-friendly text in
+ * the citizen's language without any client-side mapping tables.
+ */
+
+export type DomainErrorCode =
+  | 'REPORT_NOT_FOUND'
+  | 'INVALID_STATUS_TRANSITION'
+  | 'REJECTION_REASON_REQUIRED'
+  | 'DUPLICATE_RESOURCE'
+  | 'STORAGE_UNAVAILABLE'
+  | 'UNTRUSTED_ATTACHMENT_URL'
+  | 'INVALID_CREDENTIALS'
+  | 'INVALID_FILE'
+  | 'PROPERTY_NUMBER_TAKEN'
+  | 'MISSING_REQUIRED_FILE'
+  | 'DESCRIPTION_REQUIRED'
+  | 'STAFF_NOT_FOUND'
+  | 'STAFF_EMAIL_TAKEN'
+  | 'PROTECTED_STAFF_ACCOUNT';
+
+/** Bilingual user-facing message pair. */
+export interface LocalizedMessage {
+  en: string;
+  ar: string;
+}
+
+export abstract class DomainError extends Error {
+  abstract readonly code: DomainErrorCode;
+  /** Arabic counterpart of `message`. */
+  readonly messageAr: string;
+
+  protected constructor(localized: LocalizedMessage) {
+    super(localized.en);
+    this.messageAr = localized.ar;
+    this.name = new.target.name;
+  }
+}
+
+export class ReportNotFoundError extends DomainError {
+  readonly code = 'REPORT_NOT_FOUND';
+
+  constructor(reportId: string) {
+    super({
+      en: `Damage report "${reportId}" was not found`,
+      ar: `لم يتم العثور على البلاغ "${reportId}"`,
+    });
+  }
+}
+
+export class InvalidStatusTransitionError extends DomainError {
+  readonly code = 'INVALID_STATUS_TRANSITION';
+
+  constructor(from: string, to: string) {
+    super({
+      en: `Cannot move a report from status "${from}" to "${to}"`,
+      ar: `لا يمكن نقل البلاغ من الحالة "${from}" إلى "${to}"`,
+    });
+  }
+}
+
+export class RejectionReasonRequiredError extends DomainError {
+  readonly code = 'REJECTION_REASON_REQUIRED';
+
+  constructor() {
+    super({
+      en: 'A rejection reason is required when rejecting a report',
+      ar: 'يجب ذكر سبب الرفض عند رفض البلاغ',
+    });
+  }
+}
+
+export class StorageUnavailableError extends DomainError {
+  readonly code = 'STORAGE_UNAVAILABLE';
+
+  constructor() {
+    super({
+      en: 'File storage is not available right now. Please try again shortly.',
+      ar: 'خدمة تخزين الملفات غير متاحة حالياً. يرجى المحاولة بعد قليل.',
+    });
+  }
+}
+
+export class UntrustedAttachmentUrlError extends DomainError {
+  readonly code = 'UNTRUSTED_ATTACHMENT_URL';
+
+  constructor() {
+    super({
+      en: 'Attachment URLs must come from this platform’s own upload endpoint',
+      ar: 'يجب أن تكون روابط المرفقات صادرة عن منصة الرفع الخاصة بهذه المنصة',
+    });
+  }
+}
+
+export class InvalidCredentialsError extends DomainError {
+  readonly code = 'INVALID_CREDENTIALS';
+
+  constructor() {
+    super({
+      en: 'Email or password is incorrect',
+      ar: 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
+    });
+  }
+}
+
+export class InvalidFileError extends DomainError {
+  readonly code = 'INVALID_FILE';
+
+  constructor(reason: string) {
+    super({
+      en: `The uploaded file was rejected: ${reason}`,
+      ar: `تم رفض الملف المرفوع: ${reason}`,
+    });
+  }
+}
+
+export class DuplicatePropertyNumberError extends DomainError {
+  readonly code = 'PROPERTY_NUMBER_TAKEN';
+
+  constructor(propertyNumber: string) {
+    super({
+      en: `Property number "${propertyNumber}" has already been submitted and is under evaluation`,
+      ar: `رقم العقار "${propertyNumber}" تم تقديمه مسبقاً وهو قيد التقييم`,
+    });
+  }
+}
+
+export class MissingRequiredFileError extends DomainError {
+  readonly code = 'MISSING_REQUIRED_FILE';
+
+  constructor(field: string) {
+    super({
+      en: `The required file "${field}" is missing from the submission`,
+      ar: `المستند المطلوب "${field}" غير مرفق بالطلب`,
+    });
+  }
+}
+
+/**
+ * v2.5 rule: the written description is required by default, but a
+ * successfully attached voice note relaxes it.
+ */
+export class DescriptionRequiredError extends DomainError {
+  readonly code = 'DESCRIPTION_REQUIRED';
+
+  constructor() {
+    super({
+      en: 'Please describe the damage in writing or attach a voice note',
+      ar: 'يرجى وصف الضرر كتابةً أو إرفاق تسجيل صوتي',
+    });
+  }
+}
+
+export class StaffNotFoundError extends DomainError {
+  readonly code = 'STAFF_NOT_FOUND';
+
+  constructor(staffId: string) {
+    super({
+      en: `Staff account "${staffId}" was not found`,
+      ar: `لم يتم العثور على حساب الموظف "${staffId}"`,
+    });
+  }
+}
+
+export class StaffEmailTakenError extends DomainError {
+  readonly code = 'STAFF_EMAIL_TAKEN';
+
+  constructor(email: string) {
+    super({
+      en: `A staff account with the email "${email}" already exists`,
+      ar: `يوجد حساب موظف مسجل مسبقاً بالبريد "${email}"`,
+    });
+  }
+}
+
+/**
+ * Blocks self-removal (locking yourself out mid-session) and removal of
+ * the last active SUPER_ADMIN (leaving the platform with no owner).
+ */
+export class ProtectedStaffAccountError extends DomainError {
+  readonly code = 'PROTECTED_STAFF_ACCOUNT';
+
+  constructor(localized: LocalizedMessage) {
+    super(localized);
+  }
+}
