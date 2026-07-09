@@ -1,45 +1,42 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Eye, EyeOff, Loader2, LogOut, ShieldCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import * as React from "react";
+import { Eye, EyeOff, Loader2, LogOut, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { staffLogin } from '@/lib/api';
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { staffLogin } from "@/lib/api";
 import {
   StaffSession,
   clearStaffSession,
   getStaffSession,
   setStaffSession,
-} from '@/lib/auth';
-import { Dictionary } from '@/lib/i18n/dictionaries';
+} from "@/lib/auth";
+import { Dictionary } from "@/lib/i18n/dictionaries";
 
 interface StaffGateProps {
   dict: Dictionary;
   children: (session: StaffSession, logout: () => void) => React.ReactNode;
 }
 
-/**
- * Client-side JWT gate for municipality pages: renders the login form
- * until a valid staff session exists, then renders its children with
- * the session. Any 401 from the API clears the stored session (see
- * lib/api.ts), and the next render lands back here.
- */
-export function StaffGate({ dict, children }: StaffGateProps): React.JSX.Element {
+export function StaffGate({
+  dict,
+  children,
+}: StaffGateProps): React.JSX.Element {
   const t = dict.login;
   const [session, setSession] = React.useState<StaffSession | null>(null);
   const [hydrated, setHydrated] = React.useState(false);
 
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
   const [rememberMe, setRememberMe] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -67,7 +64,7 @@ export function StaffGate({ dict, children }: StaffGateProps): React.JSX.Element
     if (result.ok) {
       setStaffSession(result.data, rememberMe);
       setSession(result.data);
-      setPassword('');
+      setPassword("");
       setShowPassword(false);
     } else {
       setError(result.error.status === 401 ? t.failed : result.error.message);
@@ -115,7 +112,7 @@ export function StaffGate({ dict, children }: StaffGateProps): React.JSX.Element
               <div className="relative" dir="ltr">
                 <Input
                   id="staff-password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   required
                   className="pe-10"
@@ -156,7 +153,12 @@ export function StaffGate({ dict, children }: StaffGateProps): React.JSX.Element
                 {error}
               </p>
             ) : null}
-            <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={submitting}
+            >
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" /> {t.submitting}
