@@ -1,6 +1,5 @@
 import { StaffSession, clearStaffSession, getStaffSession } from './auth';
 import {
-  CreateDamageReportInput,
   DamageSeverity,
   MultipartPayload,
   PaginatedReports,
@@ -92,46 +91,10 @@ async function request<T>(
 
 // ─────────────────────────── Citizen endpoints ───────────────────────
 
-export function createDamageReport(
-  input: CreateDamageReportInput,
-): Promise<ApiResult<ReportListItem>> {
-  return request<ReportListItem>('/damage-reports', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-}
-
-export type UploadKind = 'photo' | 'voice';
-
-export interface UploadedEvidence {
-  url: string;
-}
-
-/**
- * Uploads one photo or voice note through the backend, which validates
- * size + real file content before forwarding to Supabase Storage. The
- * returned URL is referenced in the report submission payload.
- */
-export function uploadEvidenceFile(
-  kind: UploadKind,
-  file: Blob,
-  fileName: string,
-): Promise<ApiResult<UploadedEvidence>> {
-  const formData = new FormData();
-  formData.append('file', file, fileName);
-  return request<UploadedEvidence>(`/uploads/${kind}`, {
-    method: 'POST',
-    body: formData,
-  });
-}
-
 /** Raw files travelling alongside the multipart payload. */
 export interface MultipartFilesInput {
   damagePhotos?: File[];
-  vehiclePhotos?: File[];
-  voiceNote?: Blob | null;
   nationalId?: File | null;
-  proxyNationalId?: File | null;
   propertyDeed?: File | null;
   rentalContract?: File | null;
   vehicleRegistration?: File | null;
@@ -140,8 +103,8 @@ export interface MultipartFilesInput {
 
 /**
  * Single-request submission: the JSON payload plus every raw file
- * (photos, voice note, documents) go up together in one FormData body,
- * parsed server-side by FileFieldsInterceptor and streamed to storage.
+ * (photos and documents) go up together in one FormData body, parsed
+ * server-side by FileFieldsInterceptor and streamed to storage.
  */
 export function submitDamageReportMultipart(
   payload: MultipartPayload,
@@ -153,21 +116,8 @@ export function submitDamageReportMultipart(
   for (const photo of files.damagePhotos ?? []) {
     formData.append('damagePhotos', photo, photo.name);
   }
-  for (const photo of files.vehiclePhotos ?? []) {
-    formData.append('vehiclePhotos', photo, photo.name);
-  }
-  if (files.voiceNote) {
-    formData.append('voiceNote', files.voiceNote, 'voice-note.webm');
-  }
   if (files.nationalId) {
     formData.append('nationalId', files.nationalId, files.nationalId.name);
-  }
-  if (files.proxyNationalId) {
-    formData.append(
-      'proxyNationalId',
-      files.proxyNationalId,
-      files.proxyNationalId.name,
-    );
   }
   if (files.propertyDeed) {
     formData.append('propertyDeed', files.propertyDeed, files.propertyDeed.name);
@@ -207,19 +157,33 @@ export function validatePropertyNumber(
 export function staffLogin(
   email: string,
   password: string,
+  rememberMe: boolean,
 ): Promise<ApiResult<StaffSession>> {
   return request<StaffSession>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, rememberMe }),
   });
 }
 
 // ───────────────────────── Municipality endpoints ────────────────────
 
+export type ReportSortField =
+  | 'createdAt'
+  | 'referenceCode'
+  | 'reporterName'
+  | 'neighborhood'
+  | 'severity'
+  | 'status';
+export type SortDirection = 'asc' | 'desc';
+
 export interface ListReportsParams {
   status?: ReportStatus;
   severity?: DamageSeverity;
   neighborhood?: string;
+  /** Global search: name, phone, property number or reference code. */
+  search?: string;
+  sortBy?: ReportSortField;
+  sortDir?: SortDirection;
   page?: number;
   pageSize?: number;
 }
@@ -231,6 +195,9 @@ export function listDamageReports(
   if (params.status) search.set('status', params.status);
   if (params.severity) search.set('severity', params.severity);
   if (params.neighborhood) search.set('neighborhood', params.neighborhood);
+  if (params.search) search.set('search', params.search);
+  if (params.sortBy) search.set('sortBy', params.sortBy);
+  if (params.sortDir) search.set('sortDir', params.sortDir);
   if (params.page) search.set('page', String(params.page));
   if (params.pageSize) search.set('pageSize', String(params.pageSize));
   const query = search.toString();
@@ -361,14 +328,26 @@ export interface PaginatedAuditLogs {
   pageSize: number;
 }
 
+export type AuditSortField = 'createdAt' | 'adminName' | 'actionType';
+
+export interface ListAuditLogsParams {
+  page: number;
+  pageSize?: number;
+  search?: string;
+  sortBy?: AuditSortField;
+  sortDir?: SortDirection;
+}
+
 export function listAuditLogs(
-  page: number,
-  pageSize = 20,
+  params: ListAuditLogsParams,
 ): Promise<ApiResult<PaginatedAuditLogs>> {
   const search = new URLSearchParams({
-    page: String(page),
-    pageSize: String(pageSize),
+    page: String(params.page),
+    pageSize: String(params.pageSize ?? 20),
   });
+  if (params.search) search.set('search', params.search);
+  if (params.sortBy) search.set('sortBy', params.sortBy);
+  if (params.sortDir) search.set('sortDir', params.sortDir);
   return request<PaginatedAuditLogs>(
     `/admin/audit-logs?${search.toString()}`,
     undefined,

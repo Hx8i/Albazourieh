@@ -1,26 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { ReportStatus } from '@prisma/client';
-import { AuditLogService } from '../audit/audit-log.service';
-import { TtlCacheService } from '../common/cache/ttl-cache.service';
+import { Injectable } from "@nestjs/common";
+import { AuditLogService } from "../audit/audit-log.service";
+import { TtlCacheService } from "../common/cache/ttl-cache.service";
 import {
-  DescriptionRequiredError,
   InvalidStatusTransitionError,
   MissingRequiredFileError,
   RejectionReasonRequiredError,
   ReportNotFoundError,
-  UntrustedAttachmentUrlError,
-} from '../common/errors/domain.errors';
-import { SupabaseStorageService } from '../uploads/supabase-storage.service';
-import { UploadsService } from '../uploads/uploads.service';
+} from "../common/errors/domain.errors";
+import { UploadsService } from "../uploads/uploads.service";
 import {
   AttachmentLabel,
-  CreateDamageReportDto,
   ListReportsQueryDto,
   MultipartPayloadDto,
   PropertyNumberAvailabilityDto,
   SpatialQueryDto,
   UpdateReportStatusDto,
-} from './damage-report.dto';
+} from "./damage-report.dto";
 import {
   DamageReportRepository,
   DamageReportWithRelations,
@@ -28,34 +23,32 @@ import {
   PersistReportInput,
   SpatialPoint,
   StatusSummary,
-} from './damage-report.repository';
+} from "./damage-report.repository";
+import { ReportStatus } from "../generated/prisma/client";
 
 /**
  * The review lifecycle. A report only ever moves forward (or gets
  * rejected); APPROVED and REJECTED are terminal states.
  */
 const ALLOWED_TRANSITIONS: Record<ReportStatus, readonly ReportStatus[]> = {
-  PENDING: ['UNDER_REVIEW', 'REJECTED'],
-  UNDER_REVIEW: ['VERIFIED', 'REJECTED'],
-  VERIFIED: ['APPROVED', 'REJECTED'],
+  PENDING: ["UNDER_REVIEW", "REJECTED"],
+  UNDER_REVIEW: ["VERIFIED", "REJECTED"],
+  VERIFIED: ["APPROVED", "REJECTED"],
   APPROVED: [],
   REJECTED: [],
 };
 
 /** Aggregate dashboard queries stay cached this long (cache-busted on writes). */
 const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_PREFIX = 'reports:';
+const CACHE_PREFIX = "reports:";
 
 /** Multipart field map produced by FileFieldsInterceptor. */
 export interface MultipartFiles {
   damagePhotos?: Express.Multer.File[];
-  voiceNote?: Express.Multer.File[];
   nationalId?: Express.Multer.File[];
-  proxyNationalId?: Express.Multer.File[];
   propertyDeed?: Express.Multer.File[];
   rentalContract?: Express.Multer.File[];
   vehicleRegistration?: Express.Multer.File[];
-  vehiclePhotos?: Express.Multer.File[];
   residencyProof?: Express.Multer.File[];
 }
 
@@ -70,37 +63,12 @@ export interface ActingReviewer {
 export class DamageReportService {
   constructor(
     private readonly repository: DamageReportRepository,
-    private readonly storage: SupabaseStorageService,
     private readonly uploads: UploadsService,
     private readonly cache: TtlCacheService,
     private readonly audit: AuditLogService,
   ) {}
 
   // ───────────────────────── Citizen submissions ─────────────────────
-
-  /** Legacy JSON submission (pre-uploaded evidence URLs). */
-  async submitReport(
-    dto: CreateDamageReportDto,
-  ): Promise<DamageReportWithRelations> {
-    this.assertTrustedEvidenceUrls(dto);
-
-    const created = await this.repository.createFromSubmission({
-      reporter: dto.reporter,
-      property: {
-        type: dto.property.type,
-        district: dto.property.district,
-        neighborhood: dto.property.neighborhood,
-        addressLine: dto.property.addressLine,
-        latitude: dto.property.latitude,
-        longitude: dto.property.longitude,
-      },
-      report: dto.report,
-      attachments: dto.attachments,
-    });
-
-    this.cache.invalidatePrefix(CACHE_PREFIX);
-    return created;
-  }
 
   /**
    * Multipart submission: payload JSON + raw files arrive together in
@@ -114,11 +82,11 @@ export class DamageReportService {
   ): Promise<DamageReportWithRelations> {
     this.assertRequiredFiles(payload, files);
 
-    const attachments: PersistReportInput['attachments'] = [];
+    const attachments: PersistReportInput["attachments"] = [];
 
     const uploadAll = async (
       fileList: Express.Multer.File[] | undefined,
-      kind: 'photo' | 'document',
+      kind: "photo" | "document",
       label: AttachmentLabel,
     ): Promise<void> => {
       for (const file of fileList ?? []) {
@@ -130,7 +98,7 @@ export class DamageReportService {
         );
         attachments.push({
           url,
-          type: kind === 'photo' ? 'PHOTO' : 'DOCUMENT',
+          type: kind === "photo" ? "PHOTO" : "DOCUMENT",
           label,
           mimeType: file.mimetype,
           sizeBytes: file.size,
@@ -138,28 +106,18 @@ export class DamageReportService {
       }
     };
 
-    await uploadAll(files.damagePhotos, 'photo', 'DAMAGE_PHOTO');
-    await uploadAll(files.vehiclePhotos, 'photo', 'VEHICLE_PHOTO');
-    await uploadAll(files.nationalId, 'document', 'NATIONAL_ID');
-    await uploadAll(files.proxyNationalId, 'document', 'PROXY_NATIONAL_ID');
-    await uploadAll(files.propertyDeed, 'document', 'PROPERTY_DEED');
-    await uploadAll(files.rentalContract, 'document', 'RENTAL_CONTRACT');
-    await uploadAll(files.vehicleRegistration, 'document', 'VEHICLE_REGISTRATION');
-    await uploadAll(files.residencyProof, 'document', 'RESIDENCY_PROOF');
+    await uploadAll(files.damagePhotos, "photo", "DAMAGE_PHOTO");
+    await uploadAll(files.nationalId, "document", "NATIONAL_ID");
+    await uploadAll(files.propertyDeed, "document", "PROPERTY_DEED");
+    await uploadAll(files.rentalContract, "document", "RENTAL_CONTRACT");
+    await uploadAll(
+      files.vehicleRegistration,
+      "document",
+      "VEHICLE_REGISTRATION",
+    );
+    await uploadAll(files.residencyProof, "document", "RESIDENCY_PROOF");
 
-    let voiceNoteUrl: string | undefined;
-    const voiceFile = files.voiceNote?.[0];
-    if (voiceFile) {
-      voiceNoteUrl = await this.uploads.uploadEvidence(
-        'voice',
-        voiceFile.buffer,
-        voiceFile.originalname,
-        voiceFile.mimetype,
-      );
-    }
-
-    const isVehicle = payload.category === 'VEHICLE';
-    const proxy = payload.report.proxy;
+    const isVehicle = payload.category === "VEHICLE";
     const created = await this.repository.createFromSubmission({
       reporter: {
         fullName: joinName(
@@ -175,7 +133,7 @@ export class DamageReportService {
             type: payload.category,
             vehicleType: payload.property.vehicleType,
             vehicleTypeOther:
-              payload.property.vehicleType === 'OTHER'
+              payload.property.vehicleType === "OTHER"
                 ? payload.property.customVehicleTypeDescription
                 : undefined,
             district: payload.location.district,
@@ -202,20 +160,8 @@ export class DamageReportService {
             longitude: payload.location.longitude,
           },
       report: {
-        // Voice-only submissions store an empty description (the case
-        // file shows the audio player instead).
-        description: payload.report.description ?? '',
+        description: payload.report.description,
         severity: payload.report.severity,
-        voiceNoteUrl,
-        submittedByProxy: payload.report.submittedByProxy,
-        proxyName: proxy
-          ? joinName(proxy.firstName, proxy.middleName, proxy.lastName)
-          : undefined,
-        proxyRelation:
-          proxy?.relationship === 'OTHER'
-            ? proxy.customRelationshipDescription
-            : proxy?.relationship,
-        proxyPhoneNumber: proxy?.phoneNumber,
       },
       attachments,
       enforceUniquePropertyNumber: !isVehicle,
@@ -227,61 +173,30 @@ export class DamageReportService {
 
   /**
    * Category-specific mandatory documents, checked before any upload:
-   * - Everyone: national ID + at least one damage photo; the written
-   *   description is required unless a voice note is attached.
-   * - Proxy submissions: the proxy's own national ID photo.
+   * - Everyone: national ID + at least one damage photo + a written
+   *   description (enforced by the payload schema).
    * - Property owners: proof of residency. Tenants: rental contract
    *   instead (residency proof is not applicable and not collected).
-   * - VEHICLE: vehicle papers (أوراق الآلية) + vehicle photos.
+   * - VEHICLE: vehicle papers (أوراق الآلية) are optional — uploaded
+   *   when available.
    */
   private assertRequiredFiles(
     payload: MultipartPayloadDto,
     files: MultipartFiles,
   ): void {
     if (!files.nationalId?.length) {
-      throw new MissingRequiredFileError('nationalId');
+      throw new MissingRequiredFileError("nationalId");
     }
     if (!files.damagePhotos?.length) {
-      throw new MissingRequiredFileError('damagePhotos');
+      throw new MissingRequiredFileError("damagePhotos");
     }
-    if (!payload.report.description && !files.voiceNote?.length) {
-      throw new DescriptionRequiredError();
-    }
-    if (payload.report.submittedByProxy && !files.proxyNationalId?.length) {
-      throw new MissingRequiredFileError('proxyNationalId');
-    }
-    if (payload.category === 'VEHICLE') {
-      if (!files.vehicleRegistration?.length) {
-        throw new MissingRequiredFileError('vehicleRegistration');
-      }
-      if (!files.vehiclePhotos?.length) {
-        throw new MissingRequiredFileError('vehiclePhotos');
-      }
-    } else if (payload.property.ownershipStatus === 'TENANT') {
-      if (!files.rentalContract?.length) {
-        throw new MissingRequiredFileError('rentalContract');
-      }
-    } else if (!files.residencyProof?.length) {
-      throw new MissingRequiredFileError('residencyProof');
-    }
-  }
-
-  /**
-   * Every evidence URL in a JSON submission must come from this
-   * platform's own storage buckets, never an arbitrary foreign URL.
-   */
-  private assertTrustedEvidenceUrls(dto: CreateDamageReportDto): void {
-    const trustedPrefixes = this.storage.getTrustedUrlPrefixes();
-    if (trustedPrefixes.length === 0) return;
-
-    const urls = [
-      dto.report.voiceNoteUrl,
-      ...dto.attachments.map((attachment) => attachment.url),
-    ].filter((url): url is string => Boolean(url));
-
-    for (const url of urls) {
-      if (!trustedPrefixes.some((prefix) => url.startsWith(prefix))) {
-        throw new UntrustedAttachmentUrlError();
+    if (payload.category !== "VEHICLE") {
+      if (payload.property.ownershipStatus === "TENANT") {
+        if (!files.rentalContract?.length) {
+          throw new MissingRequiredFileError("rentalContract");
+        }
+      } else if (!files.residencyProof?.length) {
+        throw new MissingRequiredFileError("residencyProof");
       }
     }
   }
@@ -297,12 +212,15 @@ export class DamageReportService {
 
   // ───────────────────────── Municipality reads ──────────────────────
 
-  /** Paginated, filterable inbox (not cached — always fresh). */
+  /** Paginated, filterable, searchable, sortable inbox (not cached — always fresh). */
   async listReports(query: ListReportsQueryDto): Promise<PaginatedReports> {
     return this.repository.list({
       status: query.status,
       severity: query.severity,
       neighborhood: query.neighborhood,
+      search: query.search,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
       page: query.page,
       pageSize: query.pageSize,
     });
@@ -319,7 +237,7 @@ export class DamageReportService {
 
   /** deck.gl point slice — cached per filter combination. */
   async getSpatialData(query: SpatialQueryDto): Promise<SpatialPoint[]> {
-    const key = `${CACHE_PREFIX}spatial:${query.status ?? '*'}:${query.severity ?? '*'}:${query.neighborhood ?? '*'}:${query.limit}`;
+    const key = `${CACHE_PREFIX}spatial:${query.status ?? "*"}:${query.severity ?? "*"}:${query.neighborhood ?? "*"}:${query.limit}`;
     return this.cache.getOrSet(key, DASHBOARD_CACHE_TTL_MS, () =>
       this.repository.spatial({
         status: query.status,
@@ -355,14 +273,14 @@ export class DamageReportService {
     if (!ALLOWED_TRANSITIONS[report.status].includes(dto.status)) {
       throw new InvalidStatusTransitionError(report.status, dto.status);
     }
-    if (dto.status === 'REJECTED' && !dto.rejectionReason) {
+    if (dto.status === "REJECTED" && !dto.rejectionReason) {
       throw new RejectionReasonRequiredError();
     }
 
     await this.repository.updateStatus(
       id,
       dto.status,
-      dto.status === 'REJECTED' ? (dto.rejectionReason ?? null) : null,
+      dto.status === "REJECTED" ? (dto.rejectionReason ?? null) : null,
       reviewer.id,
     );
 
@@ -370,11 +288,11 @@ export class DamageReportService {
     await this.audit.record({
       adminId: reviewer.id,
       adminName: reviewer.name,
-      actionType: 'UPDATE_REPORT_STATUS',
-      targetId: id,
+      actionType: "UPDATE_REPORT_STATUS",
+      targetId: report.referenceCode,
       details:
-        dto.status === 'REJECTED'
-          ? `${report.status} → ${dto.status} (${dto.rejectionReason ?? ''})`
+        dto.status === "REJECTED"
+          ? `${report.status} → ${dto.status} (${dto.rejectionReason ?? ""})`
           : `${report.status} → ${dto.status}`,
       ipAddress: reviewer.ipAddress,
     });
@@ -386,5 +304,5 @@ export class DamageReportService {
 
 /** First + father's + family name, collapsed to one display string. */
 function joinName(first: string, middle: string, last: string): string {
-  return [first, middle, last].join(' ').replace(/\s+/g, ' ').trim();
+  return [first, middle, last].join(" ").replace(/\s+/g, " ").trim();
 }

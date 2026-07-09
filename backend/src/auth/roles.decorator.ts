@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import { MunicipalityRole } from '@prisma/client';
+import { MunicipalityRole } from '../generated/prisma/client';
 
 /** Re-exported so guards/controllers can read `Role.SUPER_ADMIN` ergonomically. */
 export const Role = MunicipalityRole;

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MunicipalityUser } from '@prisma/client';
+import { MunicipalityUser } from '../generated/prisma/client';
 import { hash } from 'bcryptjs';
 import { AuditLogService } from '../audit/audit-log.service';
 import {

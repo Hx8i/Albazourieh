@@ -1,32 +1,19 @@
 'use client';
 
 import * as React from 'react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Loader2,
-  TriangleAlert,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { AuditActionType, AuditLogItem, listAuditLogs } from '@/lib/api';
-import { Dictionary, Locale, fill } from '@/lib/i18n/dictionaries';
+import { ColumnDef, PaginationState, SortingState } from '@tanstack/react-table';
+import { ClipboardList } from 'lucide-react';
+import { DataTable, DataTableLabels } from '@/components/ui/data-table';
+import { AuditActionType, AuditLogItem, AuditSortField, SortDirection } from '@/lib/api';
+import { Dictionary, Locale } from '@/lib/i18n/dictionaries';
+import { toApiError } from '@/lib/query-client';
+import { useAuditLogsQuery } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
 interface AuditTrailPanelProps {
   dict: Dictionary;
   locale: Locale;
 }
-
-const PAGE_SIZE = 10;
 
 const ACTION_BADGE_CLASS: Record<AuditActionType, string> = {
   CREATE_STAFF: 'bg-emerald-500/10 text-emerald-700',
@@ -37,9 +24,9 @@ const ACTION_BADGE_CLASS: Record<AuditActionType, string> = {
 
 /**
  * "تتبع العمليات" — the SUPER_ADMIN-only administrative audit trail:
- * who did what, to which record, and when. High-contrast, newest first,
- * with standard pagination. Rendering is gated by the caller, but the
- * backend enforces the role on the endpoint regardless.
+ * who did what, to which record, and when. Server-driven pagination,
+ * search and sorting via the shared DataTable. Rendering is gated by
+ * the caller, but the backend enforces the role on the endpoint anyway.
  */
 export function AuditTrailPanel({
   dict,
@@ -47,36 +34,32 @@ export function AuditTrailPanel({
 }: AuditTrailPanelProps): React.JSX.Element {
   const t = dict.audit;
 
-  const [items, setItems] = React.useState<AuditLogItem[]>([]);
-  const [page, setPage] = React.useState(1);
-  const [totalPages, setTotalPages] = React.useState(1);
-  const [totalCount, setTotalCount] = React.useState(0);
-  const [loading, setLoading] = React.useState(true);
-  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState('');
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: 'createdAt', desc: true },
+  ]);
+  const [pagination, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
 
-  // Out-of-order guard for fast page flipping.
-  const requestIdRef = React.useRef(0);
+  const sort = sorting[0];
+  const sortBy: AuditSortField = (sort?.id as AuditSortField) ?? 'createdAt';
+  const sortDir: SortDirection = sort ? (sort.desc ? 'desc' : 'asc') : 'desc';
 
-  const load = React.useCallback(async (): Promise<void> => {
-    const requestId = ++requestIdRef.current;
-    setLoading(true);
-    setLoadError(null);
-    const result = await listAuditLogs(page, PAGE_SIZE);
-    if (requestIdRef.current !== requestId) return;
+  const auditQuery = useAuditLogsQuery({
+    page: pagination.pageIndex + 1,
+    pageSize: pagination.pageSize,
+    search: search.trim() || undefined,
+    sortBy,
+    sortDir,
+  });
 
-    if (result.ok) {
-      setItems(result.data.items);
-      setTotalPages(result.data.totalPages);
-      setTotalCount(result.data.totalCount);
-    } else {
-      setLoadError(result.error.message);
-    }
-    setLoading(false);
-  }, [page]);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
+  const items = auditQuery.data?.items ?? [];
+  const totalCount = auditQuery.data?.totalCount ?? 0;
+  const loadErrorMessage = auditQuery.isError
+    ? toApiError(auditQuery.error).message
+    : null;
 
   const timeFormatter = new Intl.DateTimeFormat(
     locale === 'ar' ? 'ar-LB' : 'en-GB',
@@ -93,6 +76,83 @@ export function AuditTrailPanel({
         ? `${item.targetId.slice(0, 24)}…`
         : item.targetId;
 
+  const dataTableLabels: DataTableLabels = {
+    searchAriaLabel: t.search.label,
+    searchPlaceholder: t.search.placeholder,
+    clearSearch: t.search.clear,
+    empty: t.empty,
+    emptySearch: t.emptySearch,
+    loadError: `${dict.dashboard.table.loadError} ${loadErrorMessage ?? ''}`.trim(),
+    retry: dict.common.retry,
+    previous: dict.dashboard.pagination.previous,
+    next: dict.dashboard.pagination.next,
+    pageOf: dict.dashboard.pagination.pageOf,
+    rowsPerPage: dict.dashboard.pagination.rowsPerPage,
+    totalRows: t.totalEntries,
+    sortAscending: dict.dashboard.table.sortAscending,
+    sortDescending: dict.dashboard.table.sortDescending,
+    sortNone: dict.dashboard.table.sortNone,
+  };
+
+  const columns = React.useMemo<ColumnDef<AuditLogItem>[]>(
+    () => [
+      {
+        id: 'adminName',
+        accessorFn: (row) => row.adminName,
+        header: t.colAdmin,
+        meta: { cellClassName: 'font-medium' },
+      },
+      {
+        id: 'actionType',
+        accessorFn: (row) => row.actionType,
+        header: t.colAction,
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
+              ACTION_BADGE_CLASS[row.original.actionType],
+            )}
+          >
+            {actionLabel(row.original.actionType)}
+          </span>
+        ),
+      },
+      {
+        id: 'target',
+        header: t.colTarget,
+        enableSorting: false,
+        meta: { cellClassName: 'font-mono text-xs' },
+        cell: ({ row }) => (
+          <span dir="ltr">{targetLabel(row.original)}</span>
+        ),
+      },
+      {
+        id: 'details',
+        header: t.colDetails,
+        enableSorting: false,
+        meta: { cellClassName: 'max-w-[280px] text-sm text-muted-foreground' },
+        cell: ({ row }) => (
+          <span dir="ltr" className="block truncate" title={row.original.details}>
+            {row.original.details}
+          </span>
+        ),
+      },
+      {
+        id: 'createdAt',
+        accessorFn: (row) => row.createdAt,
+        header: t.colTime,
+        meta: { headerClassName: 'w-[180px]', cellClassName: 'text-sm text-muted-foreground' },
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {timeFormatter.format(new Date(row.original.createdAt))}
+          </span>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t, timeFormatter],
+  );
+
   return (
     <section className="space-y-4 rounded-xl border bg-card p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -103,99 +163,27 @@ export function AuditTrailPanel({
             <p className="text-sm text-muted-foreground">{t.subtitle}</p>
           </div>
         </div>
-        <span className="text-sm text-muted-foreground">
-          {fill(t.totalEntries, { count: totalCount })}
-        </span>
       </div>
 
-      {loading ? (
-        <p className="inline-flex items-center gap-2 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {dict.common.loading}
-        </p>
-      ) : loadError ? (
-        <p className="inline-flex items-center gap-2 py-6 text-sm text-destructive">
-          <TriangleAlert className="h-4 w-4" />
-          {loadError}
-        </p>
-      ) : items.length === 0 ? (
-        <p className="py-6 text-sm text-muted-foreground">{t.empty}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t.colAdmin}</TableHead>
-                <TableHead>{t.colAction}</TableHead>
-                <TableHead>{t.colTarget}</TableHead>
-                <TableHead>{t.colDetails}</TableHead>
-                <TableHead>{t.colTime}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.adminName}</TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
-                        ACTION_BADGE_CLASS[item.actionType],
-                      )}
-                    >
-                      {actionLabel(item.actionType)}
-                    </span>
-                  </TableCell>
-                  <TableCell dir="ltr" className="text-start font-mono text-xs">
-                    {targetLabel(item)}
-                  </TableCell>
-                  <TableCell
-                    dir="ltr"
-                    className="max-w-[280px] truncate text-start text-sm text-muted-foreground"
-                    title={item.details}
-                  >
-                    {item.details}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {timeFormatter.format(new Date(item.createdAt))}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {totalPages > 1 ? (
-        <div className="flex items-center justify-end gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading || page <= 1}
-            onClick={() => setPage((previous) => Math.max(1, previous - 1))}
-          >
-            <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
-            {dict.dashboard.pagination.previous}
-          </Button>
-          <span className="text-sm font-medium tabular-nums">
-            {fill(dict.dashboard.pagination.pageOf, {
-              current: page,
-              total: totalPages,
-            })}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading || page >= totalPages}
-            onClick={() =>
-              setPage((previous) => Math.min(totalPages, previous + 1))
-            }
-          >
-            {dict.dashboard.pagination.next}
-            <ChevronRight className="h-4 w-4 rtl:rotate-180" />
-          </Button>
-        </div>
-      ) : null}
+      <DataTable
+        columns={columns}
+        data={items}
+        getRowId={(row) => row.id}
+        labels={dataTableLabels}
+        manual
+        pageCount={Math.max(1, Math.ceil(totalCount / pagination.pageSize))}
+        totalRowCount={totalCount}
+        pagination={pagination}
+        onPaginationChange={setPagination}
+        sorting={sorting}
+        onSortingChange={setSorting}
+        searchValue={search}
+        onSearchChange={setSearch}
+        loading={auditQuery.isFetching}
+        error={loadErrorMessage}
+        onRetry={() => void auditQuery.refetch()}
+        emptyIcon={<ClipboardList className="h-10 w-10 text-muted-foreground/60" />}
+      />
     </section>
   );
 }

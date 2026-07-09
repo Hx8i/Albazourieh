@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { compare } from 'bcryptjs';
-import { InvalidCredentialsError } from '../common/errors/domain.errors';
-import { PrismaService } from '../prisma/prisma.service';
-import { JwtPayload, LoginDto, LoginResponseDto } from './auth.dto';
+import { Injectable } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { compare } from "bcryptjs";
+import { InvalidCredentialsError } from "../common/errors/domain.errors";
+import { PrismaService } from "../prisma/prisma.service";
+import { JwtPayload, LoginDto, LoginResponseDto } from "./auth.dto";
 
 @Injectable()
 export class AuthService {
@@ -35,7 +35,9 @@ export class AuthService {
     };
 
     return {
-      accessToken: await this.jwtService.signAsync(payload),
+      accessToken: await this.jwtService.signAsync(payload, {
+        expiresIn: dto.rememberMe ? "7d" : "12h",
+      }),
       user: {
         id: user.id,
         email: user.email,

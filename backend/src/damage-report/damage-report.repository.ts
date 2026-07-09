@@ -8,11 +8,13 @@ import {
   Prisma,
   PropertyType,
   ReportStatus,
-} from '@prisma/client';
+} from '../generated/prisma/client';
 import { DuplicatePropertyNumberError } from '../common/errors/domain.errors';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReportSortField, SortDirection } from './damage-report.dto';
+import { generateReferenceCode } from './reference-code';
 
-const reportWithRelations = Prisma.validator<Prisma.DamageReportDefaultArgs>()({
+const reportWithRelations = {
   include: {
     reporter: {
       select: { id: true, fullName: true, phoneNumber: true },
@@ -41,18 +43,46 @@ const reportWithRelations = Prisma.validator<Prisma.DamageReportDefaultArgs>()({
       select: { id: true, url: true, type: true, label: true, mimeType: true },
     },
   },
-});
+} satisfies Prisma.DamageReportDefaultArgs;
 
 export type DamageReportWithRelations = Prisma.DamageReportGetPayload<
   typeof reportWithRelations
 >;
 
+/** How many fresh codes to try before giving up on a pathological run. */
+const MAX_REFERENCE_CODE_ATTEMPTS = 5;
+
 export interface ListReportsFilter {
   status?: ReportStatus;
   severity?: DamageSeverity;
   neighborhood?: string;
+  /** Single-input search: name, phone, property number or reference code. */
+  search?: string;
+  sortBy: ReportSortField;
+  sortDir: SortDirection;
   page: number;
   pageSize: number;
+}
+
+/** Maps a dashboard-facing sort field onto the Prisma orderBy shape. */
+function reportOrderBy(
+  sortBy: ReportSortField,
+  sortDir: SortDirection,
+): Prisma.DamageReportOrderByWithRelationInput {
+  switch (sortBy) {
+    case 'referenceCode':
+      return { referenceCode: sortDir };
+    case 'reporterName':
+      return { reporter: { fullName: sortDir } };
+    case 'neighborhood':
+      return { property: { neighborhood: sortDir } };
+    case 'severity':
+      return { severity: sortDir };
+    case 'status':
+      return { status: sortDir };
+    case 'createdAt':
+      return { createdAt: sortDir };
+  }
 }
 
 export interface PaginatedReports {
@@ -64,8 +94,8 @@ export interface PaginatedReports {
 }
 
 /**
- * Framework-agnostic persistence input — both the JSON endpoint and the
- * multipart pipeline map their validated DTOs onto this shape.
+ * Framework-agnostic persistence input — the multipart pipeline maps its
+ * validated DTO onto this shape.
  */
 export interface PersistReportInput {
   reporter: {
@@ -93,11 +123,6 @@ export interface PersistReportInput {
   report: {
     description: string;
     severity: DamageSeverity;
-    voiceNoteUrl?: string;
-    submittedByProxy: boolean;
-    proxyName?: string;
-    proxyRelation?: string;
-    proxyPhoneNumber?: string;
   };
   attachments: Array<{
     url: string;
@@ -133,8 +158,15 @@ export interface SpatialPoint {
   propertyType: string;
   neighborhood: string;
   reporterName: string;
-  /** Enables inline audio playback in the map popover. */
-  voiceNoteUrl: string | null;
+}
+
+/** True when the unique-index violation is on the reference code. */
+function isReferenceCodeCollision(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002' &&
+    JSON.stringify(error.meta?.target ?? '').includes('referenceCode')
+  );
 }
 
 /**
@@ -159,10 +191,30 @@ export class DamageReportRepository {
    * Creates the user (upserted by phone number), the property, the
    * report and its attachments atomically. Optionally rejects duplicate
    * official property numbers inside the same transaction so two
-   * submissions can't race past the check.
+   * submissions can't race past the check. The public reference code is
+   * generated here; on the (rare) unique-index collision the whole
+   * transaction is retried with a fresh code.
    */
   async createFromSubmission(
     input: PersistReportInput,
+  ): Promise<DamageReportWithRelations> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.persistSubmission(input, generateReferenceCode());
+      } catch (error) {
+        if (
+          !isReferenceCodeCollision(error) ||
+          attempt >= MAX_REFERENCE_CODE_ATTEMPTS
+        ) {
+          throw error;
+        }
+      }
+    }
+  }
+
+  private async persistSubmission(
+    input: PersistReportInput,
+    referenceCode: string,
   ): Promise<DamageReportWithRelations> {
     return this.prisma.$transaction(async (tx) => {
       if (input.enforceUniquePropertyNumber && input.property.realEstateNumber) {
@@ -215,13 +267,9 @@ export class DamageReportRepository {
 
       return tx.damageReport.create({
         data: {
+          referenceCode,
           description: input.report.description,
           severity: input.report.severity,
-          voiceNoteUrl: input.report.voiceNoteUrl,
-          submittedByProxy: input.report.submittedByProxy,
-          proxyName: input.report.proxyName,
-          proxyRelation: input.report.proxyRelation,
-          proxyPhoneNumber: input.report.proxyPhoneNumber,
           reporterId: user.id,
           propertyId: property.id,
           attachments: {
@@ -267,16 +315,44 @@ export class DamageReportRepository {
         : undefined,
     };
 
-    const [items, totalCount] = await this.prisma.$transaction([
-      this.prisma.damageReport.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (filter.page - 1) * filter.pageSize,
-        take: filter.pageSize,
-        ...reportWithRelations,
-      }),
-      this.prisma.damageReport.count({ where }),
-    ]);
+    if (filter.search) {
+      // One input, four identifying fields — a report matches when any
+      // of them contains the term (case-insensitively).
+      where.OR = [
+        { referenceCode: { contains: filter.search, mode: 'insensitive' } },
+        {
+          reporter: {
+            fullName: { contains: filter.search, mode: 'insensitive' },
+          },
+        },
+        { reporter: { phoneNumber: { contains: filter.search } } },
+        {
+          property: {
+            realEstateNumber: { contains: filter.search, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
+    const [items, totalCount] = await this.prisma.$transaction(
+      [
+        this.prisma.damageReport.findMany({
+          where,
+          orderBy: reportOrderBy(filter.sortBy, filter.sortDir),
+          skip: (filter.page - 1) * filter.pageSize,
+          take: filter.pageSize,
+          ...reportWithRelations,
+        }),
+        this.prisma.damageReport.count({ where }),
+      ],
+      // Prisma's defaults (5s execution, 2s to acquire a connection) are
+      // too tight for this pooled single-connection link (see
+      // createFromSubmission for the same rationale) — every extra
+      // column sort/search now drives this query far more often than
+      // the old fixed-order listing did, so requests queue for the one
+      // available connection more visibly.
+      { timeout: 15000, maxWait: 15000 },
+    );
 
     return {
       items,
@@ -324,7 +400,6 @@ export class DamageReportRepository {
         id: true,
         severity: true,
         status: true,
-        voiceNoteUrl: true,
         reporter: { select: { fullName: true } },
         property: {
           select: {
@@ -346,7 +421,6 @@ export class DamageReportRepository {
       propertyType: row.property.type,
       neighborhood: row.property.neighborhood,
       reporterName: row.reporter.fullName,
-      voiceNoteUrl: row.voiceNoteUrl,
     }));
   }
 

@@ -292,15 +292,6 @@ export function DamageMapPanel({
                   {t.status[selected.point.status]}
                 </Badge>
               </div>
-              {/* Inline voice-note playback, straight from the popover. */}
-              {selected.point.voiceNoteUrl ? (
-                <audio
-                  controls
-                  preload="none"
-                  src={selected.point.voiceNoteUrl}
-                  className="mt-3 h-9 w-full"
-                />
-              ) : null}
               <Button asChild size="sm" className="mt-3 w-full">
                 <Link
                   href={`/${locale}/${ADMIN_PATH}/reports/${selected.point.id}`}

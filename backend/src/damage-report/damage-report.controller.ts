@@ -22,11 +22,9 @@ import {
   validateWithSchema,
 } from '../common/pipes/zod-validation.pipe';
 import {
-  CreateDamageReportDto,
   ListReportsQueryDto,
   SpatialQueryDto,
   UpdateReportStatusDto,
-  createDamageReportSchema,
   listReportsQuerySchema,
   multipartPayloadSchema,
   reportIdParamSchema,
@@ -46,10 +44,7 @@ const MULTIPART_FILE_LIMIT_BYTES = 11 * 1024 * 1024;
 
 const MULTIPART_FILE_FIELDS = [
   { name: 'damagePhotos', maxCount: 10 },
-  { name: 'vehiclePhotos', maxCount: 8 },
-  { name: 'voiceNote', maxCount: 1 },
   { name: 'nationalId', maxCount: 1 },
-  { name: 'proxyNationalId', maxCount: 1 },
   { name: 'propertyDeed', maxCount: 1 },
   { name: 'rentalContract', maxCount: 1 },
   { name: 'vehicleRegistration', maxCount: 1 },
@@ -60,29 +55,18 @@ const MULTIPART_FILE_FIELDS = [
 export class DamageReportController {
   constructor(private readonly service: DamageReportService) {}
 
-  /** Citizens (or proxies for elderly relatives) submit a new report. */
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  async submit(
-    @Body(new ZodValidationPipe(createDamageReportSchema))
-    dto: CreateDamageReportDto,
-  ): Promise<DamageReportWithRelations> {
-    return this.service.submitReport(dto);
-  }
-
   /**
    * Citizen wizard v2: one multipart/form-data request carrying the
-   * JSON `payload` field plus every raw file (photos, voice note,
-   * national ID, deeds/contracts/registrations, residency proof),
-   * parsed by FileFieldsInterceptor and streamed to Supabase Storage.
+   * JSON `payload` field plus every raw file (photos, national ID,
+   * deeds/contracts/registrations, residency proof), parsed by
+   * FileFieldsInterceptor and streamed to Supabase Storage.
    */
   @Post('multipart')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseInterceptors(
     FileFieldsInterceptor(MULTIPART_FILE_FIELDS, {
-      limits: { fileSize: MULTIPART_FILE_LIMIT_BYTES, files: 24 },
+      limits: { fileSize: MULTIPART_FILE_LIMIT_BYTES, files: 15 },
     }),
   )
   async submitMultipart(
@@ -102,7 +86,7 @@ export class DamageReportController {
     return this.service.submitMultipart(payload, files);
   }
 
-  /** Municipality staff: filterable, paginated report inbox. */
+  /** Municipality staff: filterable, searchable, paginated report inbox. */
   @Get()
   @UseGuards(JwtAuthGuard)
   async list(

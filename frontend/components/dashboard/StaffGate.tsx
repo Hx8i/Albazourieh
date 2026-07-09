@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Loader2, LogOut, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Loader2, LogOut, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { staffLogin } from '@/lib/api';
@@ -39,6 +40,8 @@ export function StaffGate({ dict, children }: StaffGateProps): React.JSX.Element
 
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -54,13 +57,18 @@ export function StaffGate({ dict, children }: StaffGateProps): React.JSX.Element
     setSubmitting(true);
     setError(null);
 
-    const result = await staffLogin(email.trim().toLowerCase(), password);
+    const result = await staffLogin(
+      email.trim().toLowerCase(),
+      password,
+      rememberMe,
+    );
     setSubmitting(false);
 
     if (result.ok) {
-      setStaffSession(result.data);
+      setStaffSession(result.data, rememberMe);
       setSession(result.data);
       setPassword('');
+      setShowPassword(false);
     } else {
       setError(result.error.status === 401 ? t.failed : result.error.message);
     }
@@ -104,15 +112,44 @@ export function StaffGate({ dict, children }: StaffGateProps): React.JSX.Element
             </div>
             <div className="space-y-2">
               <Label htmlFor="staff-password">{t.passwordLabel}</Label>
-              <Input
-                id="staff-password"
-                type="password"
-                autoComplete="current-password"
-                required
-                dir="ltr"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+              <div className="relative" dir="ltr">
+                <Input
+                  id="staff-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  className="pe-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((previous) => !previous)}
+                  aria-label={showPassword ? t.hidePassword : t.showPassword}
+                  aria-pressed={showPassword}
+                  className="absolute end-0 top-0 flex h-full w-10 items-center justify-center rounded-e-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="staff-remember"
+                className="h-5 w-5"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
               />
+              <Label
+                htmlFor="staff-remember"
+                className="cursor-pointer text-sm font-normal"
+              >
+                {t.rememberMe}
+              </Label>
             </div>
             {error ? (
               <p className="rounded-lg bg-destructive/10 p-3 text-center text-sm font-medium text-destructive">

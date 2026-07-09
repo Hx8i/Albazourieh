@@ -1,5 +1,22 @@
-import type { StyleSpecification } from 'maplibre-gl';
+import {
+  getRTLTextPluginStatus,
+  setRTLTextPlugin,
+  type StyleSpecification,
+} from 'maplibre-gl';
 import { DamageSeverity } from '@/lib/schemas/damage-report.schema';
+
+/**
+ * MapLibre doesn't shape/reorder Arabic or Hebrew glyphs out of the box —
+ * without this plugin, RTL place labels (village/town names on the CARTO
+ * basemap) render as disconnected, reversed-order characters. Registering
+ * it once (lazily, client-side only) fixes every map using this config.
+ */
+if (typeof window !== 'undefined' && getRTLTextPluginStatus() === 'unavailable') {
+  setRTLTextPlugin(
+    'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.js',
+    true,
+  );
+}
 
 /**
  * Free, token-less street basemap (CARTO Voyager via MapLibre) — a

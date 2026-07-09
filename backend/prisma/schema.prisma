@@ -2,13 +2,12 @@
 // Database: Supabase (PostgreSQL) via Prisma
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ─────────────────────────────── Enums ───────────────────────────────
@@ -86,30 +85,30 @@ model User {
 /// The damaged asset. Coordinates are captured on the citizen's phone
 /// via the HTML5 Geolocation API and are critical for field inspection.
 model Property {
-  id               String           @id @default(uuid()) @db.Uuid
-  type             PropertyType
-  ownershipStatus  OwnershipStatus?
-  realEstateNumber String?          @db.VarChar(60)
+  id                   String           @id @default(uuid()) @db.Uuid
+  type                 PropertyType
+  ownershipStatus      OwnershipStatus?
+  realEstateNumber     String?          @db.VarChar(60)
   /// Vehicle sub-type for VEHICLE reports: CAR/TRUCK/TRACTOR/BUS/VAN/OTHER.
-  vehicleType      String?          @db.VarChar(30)
+  vehicleType          String?          @db.VarChar(30)
   /// Free-text description when vehicleType is OTHER.
-  vehicleTypeOther String?          @db.VarChar(120)
+  vehicleTypeOther     String?          @db.VarChar(120)
   /// Tenant submissions may share the landlord's phone (optional).
-  ownerPhoneNumber String?          @db.VarChar(20)
-  district         String?          @db.VarChar(120)
+  ownerPhoneNumber     String?          @db.VarChar(20)
+  district             String?          @db.VarChar(120)
   /// Kept in sync with `street` so dashboard filters/map keep working.
-  neighborhood     String       @db.VarChar(120)
+  neighborhood         String           @db.VarChar(120)
   // v2 deep-precision location fields.
-  street               String?  @db.VarChar(120)
-  projectName          String?  @db.VarChar(120)
-  floor                String?  @db.VarChar(30)
-  additionalDirections String?  @db.VarChar(255)
-  addressLine      String?      @db.VarChar(255)
-  latitude         Float
-  longitude        Float
-  ownerId          String       @db.Uuid
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  street               String?          @db.VarChar(120)
+  projectName          String?          @db.VarChar(120)
+  floor                String?          @db.VarChar(30)
+  additionalDirections String?          @db.VarChar(255)
+  addressLine          String?          @db.VarChar(255)
+  latitude             Float
+  longitude            Float
+  ownerId              String           @db.Uuid
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   reports DamageReport[]
@@ -117,27 +116,25 @@ model Property {
   @@index([district])
   @@index([neighborhood])
   @@index([latitude, longitude])
+  @@index([realEstateNumber])
   @@map("properties")
 }
 
-/// One damage claim filed by a citizen (or by a relative acting as a
-/// proxy for an elderly person — see submittedByProxy/proxyName/proxyRelation).
+/// One damage claim filed by a citizen.
 model DamageReport {
-  id               String         @id @default(uuid()) @db.Uuid
-  description      String
-  voiceNoteUrl     String?        @db.VarChar(2048)
-  status           ReportStatus   @default(PENDING)
-  severity         DamageSeverity
-  submittedByProxy Boolean        @default(false)
-  proxyName        String?        @db.VarChar(120)
-  proxyRelation    String?        @db.VarChar(60)
-  proxyPhoneNumber String?        @db.VarChar(20)
-  rejectionReason  String?
-  reporterId       String         @db.Uuid
-  propertyId       String         @db.Uuid
-  reviewedById     String?        @db.Uuid
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id              String         @id @default(uuid()) @db.Uuid
+  /// Public 6-character reference (uppercase letters + digits, e.g.
+  /// "A4X8Q2") — the identifier shown to citizens and staff.
+  referenceCode   String         @unique @db.VarChar(6)
+  description     String
+  status          ReportStatus   @default(PENDING)
+  severity        DamageSeverity
+  rejectionReason String?
+  reporterId      String         @db.Uuid
+  propertyId      String         @db.Uuid
+  reviewedById    String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   reporter       User              @relation(fields: [reporterId], references: [id], onDelete: Cascade)
   property       Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -158,7 +155,7 @@ model Attachment {
   url       String         @db.VarChar(2048)
   type      AttachmentType
   /// What the file proves: DAMAGE_PHOTO, NATIONAL_ID, PROPERTY_DEED,
-  /// RENTAL_CONTRACT, VEHICLE_REGISTRATION, VEHICLE_PHOTO, RESIDENCY_PROOF
+  /// RENTAL_CONTRACT, VEHICLE_REGISTRATION, RESIDENCY_PROOF
   label     String?        @db.VarChar(60)
   mimeType  String?        @db.VarChar(100)
   sizeBytes Int?

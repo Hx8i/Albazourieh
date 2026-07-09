@@ -5,7 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { MunicipalityRole } from '@prisma/client';
+import { MunicipalityRole } from '../generated/prisma/client';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 import { ROLES_KEY } from './roles.decorator';
 
