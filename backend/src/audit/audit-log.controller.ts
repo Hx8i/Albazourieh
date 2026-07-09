@@ -22,6 +22,10 @@ export const auditListQuerySchema = z
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
     /** Spec-compatible alias for pageSize (?page=1&limit=20). */
     limit: z.coerce.number().int().min(1).max(100).optional(),
+    /** Single-input search: admin name, action type, target or details. */
+    search: z.string().trim().min(1).max(120).optional(),
+    sortBy: z.enum(['createdAt', 'adminName', 'actionType']).default('createdAt'),
+    sortDir: z.enum(['asc', 'desc']).default('desc'),
   })
   .strict();
 
@@ -48,7 +52,13 @@ export class AuditLogController {
     @Query(new ZodValidationPipe(auditListQuerySchema))
     query: AuditListQueryDto,
   ): Promise<PaginatedAuditLogs> {
-    return this.service.list(query.page, query.limit ?? query.pageSize);
+    return this.service.list({
+      page: query.page,
+      pageSize: query.limit ?? query.pageSize,
+      search: query.search,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
+    });
   }
 
   /**

@@ -4,14 +4,17 @@
  * email instead of duplicating it.
  *
  * Usage:
- *   pnpm run seed
+ *   pnpm run seed        (builds first — the Prisma client is compiled
+ *                         into dist/generated/prisma by `nest build`)
  * Credentials come from env (SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD) or
  * fall back to the values in backend/.env.
  */
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('../dist/generated/prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
 const { hash } = require('bcryptjs');
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const email = (process.env.SEED_ADMIN_EMAIL || 'admin@bazourieh.gov.lb').toLowerCase();

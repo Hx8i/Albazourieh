@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { Response } from 'express';
 import { DomainError, DomainErrorCode } from '../errors/domain.errors';
 
@@ -25,12 +25,10 @@ const DOMAIN_ERROR_STATUS: Record<DomainErrorCode, HttpStatus> = {
   REJECTION_REASON_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,
   DUPLICATE_RESOURCE: HttpStatus.CONFLICT,
   STORAGE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
-  UNTRUSTED_ATTACHMENT_URL: HttpStatus.UNPROCESSABLE_ENTITY,
   INVALID_CREDENTIALS: HttpStatus.UNAUTHORIZED,
   INVALID_FILE: HttpStatus.UNPROCESSABLE_ENTITY,
   PROPERTY_NUMBER_TAKEN: HttpStatus.CONFLICT,
   MISSING_REQUIRED_FILE: HttpStatus.UNPROCESSABLE_ENTITY,
-  DESCRIPTION_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,
   STAFF_NOT_FOUND: HttpStatus.NOT_FOUND,
   STAFF_EMAIL_TAKEN: HttpStatus.CONFLICT,
   PROTECTED_STAFF_ACCOUNT: HttpStatus.UNPROCESSABLE_ENTITY,

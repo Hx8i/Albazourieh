@@ -14,12 +14,10 @@ export type DomainErrorCode =
   | 'REJECTION_REASON_REQUIRED'
   | 'DUPLICATE_RESOURCE'
   | 'STORAGE_UNAVAILABLE'
-  | 'UNTRUSTED_ATTACHMENT_URL'
   | 'INVALID_CREDENTIALS'
   | 'INVALID_FILE'
   | 'PROPERTY_NUMBER_TAKEN'
   | 'MISSING_REQUIRED_FILE'
-  | 'DESCRIPTION_REQUIRED'
   | 'STAFF_NOT_FOUND'
   | 'STAFF_EMAIL_TAKEN'
   | 'PROTECTED_STAFF_ACCOUNT';
@@ -86,17 +84,6 @@ export class StorageUnavailableError extends DomainError {
   }
 }
 
-export class UntrustedAttachmentUrlError extends DomainError {
-  readonly code = 'UNTRUSTED_ATTACHMENT_URL';
-
-  constructor() {
-    super({
-      en: 'Attachment URLs must come from this platform’s own upload endpoint',
-      ar: 'يجب أن تكون روابط المرفقات صادرة عن منصة الرفع الخاصة بهذه المنصة',
-    });
-  }
-}
-
 export class InvalidCredentialsError extends DomainError {
   readonly code = 'INVALID_CREDENTIALS';
 
@@ -137,21 +124,6 @@ export class MissingRequiredFileError extends DomainError {
     super({
       en: `The required file "${field}" is missing from the submission`,
       ar: `المستند المطلوب "${field}" غير مرفق بالطلب`,
-    });
-  }
-}
-
-/**
- * v2.5 rule: the written description is required by default, but a
- * successfully attached voice note relaxes it.
- */
-export class DescriptionRequiredError extends DomainError {
-  readonly code = 'DESCRIPTION_REQUIRED';
-
-  constructor() {
-    super({
-      en: 'Please describe the damage in writing or attach a voice note',
-      ar: 'يرجى وصف الضرر كتابةً أو إرفاق تسجيل صوتي',
     });
   }
 }

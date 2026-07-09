@@ -16,7 +16,7 @@ function isSealedPath(pathname: string): boolean {
   return segments.some((segment) => SEALED_SEGMENTS.includes(segment));
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   if (isSealedPath(pathname)) {

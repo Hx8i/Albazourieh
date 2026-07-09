@@ -13,7 +13,6 @@ import { UPLOAD_KIND_CONFIG, UploadKind } from './upload.dto';
 export class SupabaseStorageService implements OnModuleInit {
   private readonly logger = new Logger(SupabaseStorageService.name);
   private client: SupabaseClient | null = null;
-  private readonly baseUrl: string | null;
 
   constructor(config: ConfigService) {
     const url = config.get<string>('SUPABASE_URL');
@@ -23,22 +22,7 @@ export class SupabaseStorageService implements OnModuleInit {
       this.client = createClient(url, serviceKey, {
         auth: { persistSession: false },
       });
-      this.baseUrl = url.replace(/\/$/, '');
-    } else {
-      this.baseUrl = null;
     }
-  }
-
-  isConfigured(): boolean {
-    return this.client !== null;
-  }
-
-  /** Prefixes every legitimate evidence URL must start with. */
-  getTrustedUrlPrefixes(): string[] {
-    if (!this.baseUrl) return [];
-    return Object.values(UPLOAD_KIND_CONFIG).map(
-      (config) => `${this.baseUrl}/storage/v1/object/public/${config.bucket}/`,
-    );
   }
 
   async onModuleInit(): Promise<void> {

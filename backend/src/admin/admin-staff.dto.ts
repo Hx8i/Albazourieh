@@ -1,4 +1,4 @@
-import { MunicipalityRole } from '@prisma/client';
+import { MunicipalityRole } from '../generated/prisma/client';
 import { z } from 'zod';
 
 /** Only the two-tier hierarchy is assignable through the admin UI. */

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Administrative actions tracked in the audit trail ("تتبع العمليات"). */
@@ -36,6 +37,19 @@ export interface PaginatedAuditLogs {
   pageSize: number;
 }
 
+/** Columns the audit trail table lets staff sort by. */
+export type AuditSortField = 'createdAt' | 'adminName' | 'actionType';
+export type AuditSortDirection = 'asc' | 'desc';
+
+export interface ListAuditLogsFilter {
+  page: number;
+  pageSize: number;
+  /** Single-input search: admin name, action type, target or details. */
+  search?: string;
+  sortBy: AuditSortField;
+  sortDir: AuditSortDirection;
+}
+
 /**
  * Persists one immutable row per administrative mutation. `record()` is
  * deliberately fire-and-safe: an audit-write failure is logged but never
@@ -68,16 +82,34 @@ export class AuditLogService {
     }
   }
 
-  /** Newest-first, paginated trail for the SUPER_ADMIN view. */
-  async list(page: number, pageSize: number): Promise<PaginatedAuditLogs> {
-    const [rows, totalCount] = await this.prisma.$transaction([
-      this.prisma.auditLog.findMany({
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.auditLog.count(),
-    ]);
+  /** Newest-first by default, paginated, searchable, sortable trail for the SUPER_ADMIN view. */
+  async list(filter: ListAuditLogsFilter): Promise<PaginatedAuditLogs> {
+    const where: Prisma.AuditLogWhereInput = filter.search
+      ? {
+          OR: [
+            { adminName: { contains: filter.search, mode: 'insensitive' } },
+            { actionType: { contains: filter.search, mode: 'insensitive' } },
+            { targetId: { contains: filter.search, mode: 'insensitive' } },
+            { details: { contains: filter.search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+
+    const [rows, totalCount] = await this.prisma.$transaction(
+      [
+        this.prisma.auditLog.findMany({
+          where,
+          orderBy: { [filter.sortBy]: filter.sortDir },
+          skip: (filter.page - 1) * filter.pageSize,
+          take: filter.pageSize,
+        }),
+        this.prisma.auditLog.count({ where }),
+      ],
+      // Prisma's defaults (5s execution, 2s to acquire a connection) are
+      // too tight for this pooled single-connection link — see
+      // damage-report.repository.ts's list().
+      { timeout: 15000, maxWait: 15000 },
+    );
 
     return {
       items: rows.map((row) => ({
@@ -91,9 +123,9 @@ export class AuditLogService {
         createdAt: row.createdAt.toISOString(),
       })),
       totalCount,
-      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
-      currentPage: page,
-      pageSize,
+      totalPages: Math.max(1, Math.ceil(totalCount / filter.pageSize)),
+      currentPage: filter.page,
+      pageSize: filter.pageSize,
     };
   }
 }

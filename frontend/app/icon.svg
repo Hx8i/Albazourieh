@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Albazourieh Recovery Platform — shield + rebuilt-home mark -->
+  <rect width="64" height="64" rx="14" fill="#085a8e"/>
+  <path
+    d="M32 8 L52 15 V30 C52 43 44 52 32 56 C20 52 12 43 12 30 V15 Z"
+    fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"/>
+  <path
+    d="M22 34 L32 25 L42 34 V45 H36 V38 H28 V45 H22 Z"
+    fill="#ffffff"/>
+</svg>

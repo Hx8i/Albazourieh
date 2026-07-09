@@ -11,7 +11,6 @@ import {
   FileText,
   Loader2,
   MapPin,
-  Mic,
   Phone,
   TriangleAlert,
   User,
@@ -27,9 +26,10 @@ import {
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { getReportById, updateReportStatus } from '@/lib/api';
 import { ADMIN_PATH } from '@/lib/constants';
-import { Dictionary, Locale, fill } from '@/lib/i18n/dictionaries';
+import { Dictionary, Locale } from '@/lib/i18n/dictionaries';
+import { toApiError } from '@/lib/query-client';
+import { useReportQuery, useUpdateReportStatusMutation } from '@/lib/queries';
 import {
   DamageSeverity,
   ReportListItem,
@@ -46,7 +46,7 @@ const NEXT_STATUS: Partial<Record<ReportStatus, ReportStatus>> = {
 type Attachment = ReportListItem['attachments'][number];
 
 /** Files are never pooled: each label belongs to exactly one section. */
-const IDENTITY_LABELS: readonly string[] = ['NATIONAL_ID', 'PROXY_NATIONAL_ID'];
+const IDENTITY_LABELS: readonly string[] = ['NATIONAL_ID'];
 const OWNERSHIP_LABELS: readonly string[] = [
   'PROPERTY_DEED',
   'RENTAL_CONTRACT',
@@ -131,46 +131,32 @@ export function ReportDetailView({
   const t = dict.detail;
   const td = dict.dashboard;
 
-  const [report, setReport] = React.useState<ReportListItem | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [updating, setUpdating] = React.useState(false);
+  const reportQuery = useReportQuery(reportId);
+  const report = reportQuery.data ?? null;
+  const loadError = reportQuery.isError
+    ? reportQuery.error instanceof Error &&
+      toApiError(reportQuery.error).status === 404
+      ? t.notFound
+      : toApiError(reportQuery.error).message
+    : null;
+
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [rejecting, setRejecting] = React.useState(false);
   const [rejectReason, setRejectReason] = React.useState('');
 
-  const load = React.useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setLoadError(null);
-    const result = await getReportById(reportId);
-    if (result.ok) {
-      setReport(result.data);
-    } else {
-      setLoadError(
-        result.error.status === 404 ? t.notFound : result.error.message,
-      );
-    }
-    setLoading(false);
-  }, [reportId, t.notFound]);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
+  const updateStatus = useUpdateReportStatusMutation();
 
   const applyStatus = async (
     status: ReportStatus,
     reason?: string,
   ): Promise<void> => {
-    setUpdating(true);
     setActionError(null);
-    const result = await updateReportStatus(reportId, status, reason);
-    setUpdating(false);
-    if (result.ok) {
-      setReport(result.data);
+    try {
+      await updateStatus.mutateAsync({ id: reportId, status, rejectionReason: reason });
       setRejecting(false);
       setRejectReason('');
-    } else {
-      setActionError(result.error.message);
+    } catch (error) {
+      setActionError(toApiError(error).message);
     }
   };
 
@@ -179,7 +165,7 @@ export function ReportDetailView({
     { dateStyle: 'long', timeStyle: 'short' },
   );
 
-  if (loading) {
+  if (reportQuery.isPending) {
     return (
       <div className="flex items-center justify-center gap-2 p-16 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
@@ -273,8 +259,11 @@ export function ReportDetailView({
             </Link>
           </Button>
           <h1 className="text-2xl font-bold">{t.title}</h1>
-          <span className="font-mono text-xs text-muted-foreground">
-            {report.id.slice(0, 8)}
+          <span
+            className="rounded bg-muted px-2 py-1 font-mono text-sm font-semibold tracking-wider"
+            dir="ltr"
+          >
+            {report.referenceCode}
           </span>
         </div>
         <div className="flex gap-2">
@@ -384,17 +373,6 @@ export function ReportDetailView({
                   </p>
                 </div>
               </div>
-              {report.submittedByProxy ? (
-                <Badge variant="outline">
-                  {t.proxySubmission}
-                  {report.proxyName && report.proxyRelation
-                    ? ` — ${fill(t.proxyBy, {
-                        name: report.proxyName,
-                        relation: report.proxyRelation,
-                      })}`
-                    : null}
-                </Badge>
-              ) : null}
             </CardContent>
           </Card>
 
@@ -413,21 +391,6 @@ export function ReportDetailView({
                 <p className="text-sm italic text-muted-foreground">
                   {t.noDescription}
                 </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Mic className="h-5 w-5" /> {t.voiceNoteSection}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {report.voiceNoteUrl ? (
-                <audio controls src={report.voiceNoteUrl} className="w-full" />
-              ) : (
-                <p className="text-sm text-muted-foreground">{t.noVoiceNote}</p>
               )}
             </CardContent>
           </Card>
