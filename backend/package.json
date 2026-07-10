@@ -13,7 +13,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "nest build && node --env-file=.env prisma/seed.cjs",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.12",
@@ -27,6 +28,7 @@
     "@supabase/supabase-js": "^2.49.4",
     "bcryptjs": "^3.0.2",
     "compression": "^1.7.5",
+    "express": "^5.2.1",
     "helmet": "^8.0.0",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
