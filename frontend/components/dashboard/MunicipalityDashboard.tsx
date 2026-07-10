@@ -36,6 +36,7 @@ import {
   ReportStatus,
 } from "@/lib/schemas/damage-report.schema";
 import { DamageMapPanel } from "./DamageMapPanel";
+import { RejectReasonDialog } from "./RejectReasonDialog";
 
 const ALL = "ALL";
 const CELL_PADDING = "py-3";
@@ -108,6 +109,10 @@ export function MunicipalityDashboard({
   const queryClient = useQueryClient();
 
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+  // Report awaiting a rejection reason in the modal (null = modal closed).
+  const [rejectTarget, setRejectTarget] =
+    React.useState<ReportListItem | null>(null);
+  const [rejectError, setRejectError] = React.useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = React.useState<string>(ALL);
   const [severityFilter, setSeverityFilter] = React.useState<string>(ALL);
@@ -182,21 +187,40 @@ export function MunicipalityDashboard({
     void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
   };
 
+  /** Forward lifecycle transitions (start review / verify / approve). */
   const changeStatus = async (
     report: ReportListItem,
     nextStatus: ReportStatus,
   ): Promise<void> => {
-    let rejectionReason: string | undefined;
-    if (nextStatus === "REJECTED") {
-      const reason = window.prompt(t.table.rejectPrompt);
-      if (!reason || reason.trim().length < 5) return;
-      rejectionReason = reason.trim();
-    }
     setUpdatingId(report.id);
     try {
-      await updateStatus.mutateAsync({ id: report.id, status: nextStatus, rejectionReason });
+      await updateStatus.mutateAsync({ id: report.id, status: nextStatus });
     } catch (error) {
       window.alert(toApiError(error).message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const closeRejectDialog = (): void => {
+    setRejectTarget(null);
+    setRejectError(null);
+  };
+
+  /** Reject with a mandatory reason collected by the modal. */
+  const confirmReject = async (reason: string): Promise<void> => {
+    if (!rejectTarget) return;
+    setRejectError(null);
+    setUpdatingId(rejectTarget.id);
+    try {
+      await updateStatus.mutateAsync({
+        id: rejectTarget.id,
+        status: "REJECTED",
+        rejectionReason: reason,
+      });
+      closeRejectDialog();
+    } catch (error) {
+      setRejectError(toApiError(error).message);
     } finally {
       setUpdatingId(null);
     }
@@ -466,7 +490,7 @@ export function MunicipalityDashboard({
                   size="sm"
                   variant="destructive"
                   disabled={isUpdating}
-                  onClick={() => void changeStatus(report, "REJECTED")}
+                  onClick={() => setRejectTarget(report)}
                 >
                   {t.nextAction.reject}
                 </Button>
@@ -627,6 +651,27 @@ export function MunicipalityDashboard({
           />
         </CardContent>
       </Card>
+
+      {/* Rejection-reason module (replaces the native window.prompt) */}
+      <RejectReasonDialog
+        open={rejectTarget !== null}
+        pending={updateStatus.isPending}
+        error={rejectError}
+        labels={{
+          title: t.rejectDialog.title,
+          subtitle: fill(t.rejectDialog.subtitle, {
+            reference: rejectTarget?.referenceCode ?? "",
+          }),
+          reasonLabel: t.rejectDialog.reasonLabel,
+          placeholder: t.rejectDialog.placeholder,
+          minLengthHint: t.rejectDialog.minLengthHint,
+          confirm: t.rejectDialog.confirm,
+          cancel: t.rejectDialog.cancel,
+          close: t.rejectDialog.close,
+        }}
+        onConfirm={(reason) => void confirmReject(reason)}
+        onClose={closeRejectDialog}
+      />
     </div>
   );
 }

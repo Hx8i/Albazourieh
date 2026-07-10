@@ -82,40 +82,51 @@ export class DamageReportService {
   ): Promise<DamageReportWithRelations> {
     this.assertRequiredFiles(payload, files);
 
-    const attachments: PersistReportInput["attachments"] = [];
+    // Every file upload is a separate round-trip to Supabase Storage in
+    // Tokyo, and citizen submissions can carry 7+ files (10 photos +
+    // documents). Uploading them one at a time serialized total wall-clock
+    // time past Vercel's serverless function timeout on slower (mobile)
+    // connections. Uploading concurrently keeps the whole request within
+    // the timeout regardless of file count.
+    const uploadOne = async (
+      file: Express.Multer.File,
+      kind: "photo" | "document",
+      label: AttachmentLabel,
+    ): Promise<PersistReportInput["attachments"][number]> => {
+      const url = await this.uploads.uploadEvidence(
+        kind,
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
+      return {
+        url,
+        type: kind === "photo" ? "PHOTO" : "DOCUMENT",
+        label,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+      };
+    };
 
-    const uploadAll = async (
+    const uploadAll = (
       fileList: Express.Multer.File[] | undefined,
       kind: "photo" | "document",
       label: AttachmentLabel,
-    ): Promise<void> => {
-      for (const file of fileList ?? []) {
-        const url = await this.uploads.uploadEvidence(
-          kind,
-          file.buffer,
-          file.originalname,
-          file.mimetype,
-        );
-        attachments.push({
-          url,
-          type: kind === "photo" ? "PHOTO" : "DOCUMENT",
-          label,
-          mimeType: file.mimetype,
-          sizeBytes: file.size,
-        });
-      }
-    };
+    ): Array<Promise<PersistReportInput["attachments"][number]>> =>
+      (fileList ?? []).map((file) => uploadOne(file, kind, label));
 
-    await uploadAll(files.damagePhotos, "photo", "DAMAGE_PHOTO");
-    await uploadAll(files.nationalId, "document", "NATIONAL_ID");
-    await uploadAll(files.propertyDeed, "document", "PROPERTY_DEED");
-    await uploadAll(files.rentalContract, "document", "RENTAL_CONTRACT");
-    await uploadAll(
-      files.vehicleRegistration,
-      "document",
-      "VEHICLE_REGISTRATION",
-    );
-    await uploadAll(files.residencyProof, "document", "RESIDENCY_PROOF");
+    const attachments = await Promise.all([
+      ...uploadAll(files.damagePhotos, "photo", "DAMAGE_PHOTO"),
+      ...uploadAll(files.nationalId, "document", "NATIONAL_ID"),
+      ...uploadAll(files.propertyDeed, "document", "PROPERTY_DEED"),
+      ...uploadAll(files.rentalContract, "document", "RENTAL_CONTRACT"),
+      ...uploadAll(
+        files.vehicleRegistration,
+        "document",
+        "VEHICLE_REGISTRATION",
+      ),
+      ...uploadAll(files.residencyProof, "document", "RESIDENCY_PROOF"),
+    ]);
 
     const isVehicle = payload.category === "VEHICLE";
     const created = await this.repository.createFromSubmission({

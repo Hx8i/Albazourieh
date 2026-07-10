@@ -19,6 +19,13 @@ const COMPRESSION_OPTIONS = {
   maxSizeMB: 0.4,
   /** Off-main-thread so the UI stays responsive on low-end phones. */
   useWebWorker: true,
+  /**
+   * Normalize every photo to JPEG. This guarantees the output MIME is in
+   * the backend's photo allowlist (image/jpeg|png|webp) regardless of what
+   * the phone captured, and JPEG shrinks photographs harder than PNG —
+   * keeping the multipart body small enough for Vercel's serverless cap.
+   */
+  fileType: "image/jpeg",
 } as const;
 
 /** Only bitmap images are worth compressing; anything else passes through. */
@@ -26,19 +33,25 @@ function isCompressibleImage(file: File): boolean {
   return file.type.startsWith("image/") && file.type !== "image/gif";
 }
 
+/** Swaps any file extension for `.jpg` so the name matches the JPEG output. */
+function toJpegName(name: string): string {
+  return name.replace(/\.[^./\\]+$/, "") + ".jpg";
+}
+
 /**
- * Compresses a single image, preserving its original filename. On any
- * failure the untouched original is returned — a slightly larger upload
- * is preferable to dropping the citizen's evidence.
+ * Compresses a single image and normalizes it to JPEG. On any failure the
+ * untouched original is returned — a slightly larger upload is preferable
+ * to dropping the citizen's evidence.
  */
 export async function compressImage(file: File): Promise<File> {
   if (!isCompressibleImage(file)) return file;
   try {
     const compressed = await imageCompression(file, COMPRESSION_OPTIONS);
-    // browser-image-compression returns a File; keep the original name so
-    // the server-side field mapping and filenames stay intact.
-    return new File([compressed], file.name, {
-      type: compressed.type || file.type,
+    // browser-image-compression returns a File; rebuild it with a matching
+    // JPEG name and type so the server-side validation and stored filename
+    // stay consistent.
+    return new File([compressed], toJpegName(file.name), {
+      type: "image/jpeg",
       lastModified: Date.now(),
     });
   } catch {

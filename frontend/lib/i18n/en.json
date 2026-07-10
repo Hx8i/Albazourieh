@@ -226,6 +226,16 @@
       "VERIFIED": "Approve",
       "reject": "Reject"
     },
+    "rejectDialog": {
+      "title": "Reject report",
+      "subtitle": "Report {reference}",
+      "reasonLabel": "Why is this report rejected?",
+      "placeholder": "Explain the reason for rejection…",
+      "minLengthHint": "Please enter at least 5 characters.",
+      "confirm": "Confirm rejection",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
     "pagination": {
       "pageOf": "Page {current} of {total}",
       "previous": "Previous",

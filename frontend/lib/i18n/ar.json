@@ -233,6 +233,16 @@
       "VERIFIED": "الموافقة",
       "reject": "رفض"
     },
+    "rejectDialog": {
+      "title": "رفض البلاغ",
+      "subtitle": "البلاغ {reference}",
+      "reasonLabel": "ما سبب رفض هذا البلاغ؟",
+      "placeholder": "اذكر سبب الرفض…",
+      "minLengthHint": "يرجى إدخال 5 أحرف على الأقل.",
+      "confirm": "تأكيد الرفض",
+      "cancel": "إلغاء",
+      "close": "إغلاق"
+    },
     "pagination": {
       "pageOf": "الصفحة {current} من {total}",
       "previous": "السابق",
