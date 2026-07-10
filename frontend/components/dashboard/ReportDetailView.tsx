@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import Link from 'next/link';
-import Map, { Marker } from 'react-map-gl/maplibre';
+import * as React from "react";
+import Link from "next/link";
+import Map, { Marker } from "react-map-gl/maplibre";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -14,44 +14,39 @@ import {
   Phone,
   TriangleAlert,
   User,
-} from 'lucide-react';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { ADMIN_PATH } from '@/lib/constants';
-import { Dictionary, Locale } from '@/lib/i18n/dictionaries';
-import { toApiError } from '@/lib/query-client';
-import { useReportQuery, useUpdateReportStatusMutation } from '@/lib/queries';
+} from "lucide-react";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ADMIN_PATH } from "@/lib/constants";
+import { Dictionary, Locale } from "@/lib/i18n/dictionaries";
+import { toApiError } from "@/lib/query-client";
+import { useReportQuery, useUpdateReportStatusMutation } from "@/lib/queries";
 import {
   DamageSeverity,
   ReportListItem,
   ReportStatus,
-} from '@/lib/schemas/damage-report.schema';
-import { LIGHT_MAP_STYLE } from '@/components/map/map-config';
+} from "@/lib/schemas/damage-report.schema";
+import { LIGHT_MAP_STYLE } from "@/components/map/map-config";
 
 const NEXT_STATUS: Partial<Record<ReportStatus, ReportStatus>> = {
-  PENDING: 'UNDER_REVIEW',
-  UNDER_REVIEW: 'VERIFIED',
-  VERIFIED: 'APPROVED',
+  PENDING: "UNDER_REVIEW",
+  UNDER_REVIEW: "VERIFIED",
+  VERIFIED: "APPROVED",
 };
 
-type Attachment = ReportListItem['attachments'][number];
+type Attachment = ReportListItem["attachments"][number];
 
 /** Files are never pooled: each label belongs to exactly one section. */
-const IDENTITY_LABELS: readonly string[] = ['NATIONAL_ID'];
+const IDENTITY_LABELS: readonly string[] = ["NATIONAL_ID"];
 const OWNERSHIP_LABELS: readonly string[] = [
-  'PROPERTY_DEED',
-  'RENTAL_CONTRACT',
-  'VEHICLE_REGISTRATION',
-  'RESIDENCY_PROOF',
+  "PROPERTY_DEED",
+  "RENTAL_CONTRACT",
+  "VEHICLE_REGISTRATION",
+  "RESIDENCY_PROOF",
 ];
 
 interface AttachmentGroups {
@@ -65,7 +60,10 @@ function groupAttachments(attachments: Attachment[]): AttachmentGroups {
   for (const attachment of attachments) {
     if (attachment.label && IDENTITY_LABELS.includes(attachment.label)) {
       groups.identity.push(attachment);
-    } else if (attachment.label && OWNERSHIP_LABELS.includes(attachment.label)) {
+    } else if (
+      attachment.label &&
+      OWNERSHIP_LABELS.includes(attachment.label)
+    ) {
       groups.ownership.push(attachment);
     } else {
       groups.damage.push(attachment);
@@ -76,38 +74,38 @@ function groupAttachments(attachments: Attachment[]): AttachmentGroups {
 
 function isPdf(attachment: Attachment): boolean {
   return (
-    attachment.mimeType === 'application/pdf' ||
-    attachment.url.toLowerCase().endsWith('.pdf')
+    attachment.mimeType === "application/pdf" ||
+    attachment.url.toLowerCase().endsWith(".pdf")
   );
 }
 
 function statusBadgeVariant(
   status: ReportStatus,
-): 'default' | 'secondary' | 'destructive' | 'success' | 'warning' {
+): "default" | "secondary" | "destructive" | "success" | "warning" {
   switch (status) {
-    case 'PENDING':
-      return 'secondary';
-    case 'UNDER_REVIEW':
-      return 'warning';
-    case 'VERIFIED':
-      return 'default';
-    case 'APPROVED':
-      return 'success';
-    case 'REJECTED':
-      return 'destructive';
+    case "PENDING":
+      return "secondary";
+    case "UNDER_REVIEW":
+      return "warning";
+    case "VERIFIED":
+      return "default";
+    case "APPROVED":
+      return "success";
+    case "REJECTED":
+      return "destructive";
   }
 }
 
 function severityBadgeVariant(
   severity: DamageSeverity,
-): 'destructive' | 'warning' | 'secondary' {
+): "destructive" | "warning" | "secondary" {
   switch (severity) {
-    case 'TOTAL':
-      return 'destructive';
-    case 'PARTIAL':
-      return 'warning';
-    case 'MINOR':
-      return 'secondary';
+    case "TOTAL":
+      return "destructive";
+    case "PARTIAL":
+      return "warning";
+    case "MINOR":
+      return "secondary";
   }
 }
 
@@ -142,7 +140,7 @@ export function ReportDetailView({
 
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [rejecting, setRejecting] = React.useState(false);
-  const [rejectReason, setRejectReason] = React.useState('');
+  const [rejectReason, setRejectReason] = React.useState("");
 
   const updateStatus = useUpdateReportStatusMutation();
 
@@ -152,17 +150,21 @@ export function ReportDetailView({
   ): Promise<void> => {
     setActionError(null);
     try {
-      await updateStatus.mutateAsync({ id: reportId, status, rejectionReason: reason });
+      await updateStatus.mutateAsync({
+        id: reportId,
+        status,
+        rejectionReason: reason,
+      });
       setRejecting(false);
-      setRejectReason('');
+      setRejectReason("");
     } catch (error) {
       setActionError(toApiError(error).message);
     }
   };
 
   const dateFormatter = new Intl.DateTimeFormat(
-    locale === 'ar' ? 'ar-LB' : 'en-GB',
-    { dateStyle: 'long', timeStyle: 'short' },
+    locale === "ar" ? "ar-LB" : "en-GB",
+    { dateStyle: "long", timeStyle: "short" },
   );
 
   if (reportQuery.isPending) {
@@ -191,19 +193,19 @@ export function ReportDetailView({
 
   const nextStatus = NEXT_STATUS[report.status];
   const isTerminal =
-    report.status === 'APPROVED' || report.status === 'REJECTED';
+    report.status === "APPROVED" || report.status === "REJECTED";
 
   // Vehicles purge every property-only field from the layout.
   const isVehicleCase =
-    report.property.type === 'VEHICLE' ||
-    report.property.type === 'CAR' ||
-    report.property.type === 'MOTORCYCLE';
+    report.property.type === "VEHICLE" ||
+    report.property.type === "CAR" ||
+    report.property.type === "MOTORCYCLE";
   const groups = groupAttachments(report.attachments);
 
   const vehicleTypeLabel = (): string => {
     const kind = report.property.vehicleType;
     if (!kind) return td.asset[report.property.type];
-    if (kind === 'OTHER' && report.property.vehicleTypeOther) {
+    if (kind === "OTHER" && report.property.vehicleTypeOther) {
       return report.property.vehicleTypeOther;
     }
     const known = dict.wizard.vehicleTypes as Record<string, string>;
@@ -233,7 +235,7 @@ export function ReportDetailView({
         ) : (
           <img
             src={attachment.url}
-            alt={attachmentCaption(attachment) ?? ''}
+            alt={attachmentCaption(attachment) ?? ""}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
             loading="lazy"
           />
@@ -294,14 +296,19 @@ export function ReportDetailView({
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t.phone}</p>
-                  <p className="inline-flex items-center gap-1 font-medium" dir="ltr">
+                  <p
+                    className="inline-flex items-center gap-1 font-medium"
+                    dir="ltr"
+                  >
                     <Phone className="h-3.5 w-3.5" />
                     {report.reporter.phoneNumber}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t.asset}</p>
-                  <p className="font-medium">{td.asset[report.property.type]}</p>
+                  <p className="font-medium">
+                    {td.asset[report.property.type]}
+                  </p>
                 </div>
                 {isVehicleCase ? (
                   /* Vehicle case files show only vehicle-relevant data. */
@@ -321,9 +328,11 @@ export function ReportDetailView({
                 ) : (
                   <>
                     <div>
-                      <p className="text-muted-foreground">{t.realEstateNumber}</p>
+                      <p className="text-muted-foreground">
+                        {t.realEstateNumber}
+                      </p>
                       <p className="font-medium">
-                        {report.property.realEstateNumber ?? '—'}
+                        {report.property.realEstateNumber ?? "—"}
                       </p>
                     </div>
                     <div>
@@ -334,7 +343,9 @@ export function ReportDetailView({
                     </div>
                     <div>
                       <p className="text-muted-foreground">{t.floor}</p>
-                      <p className="font-medium">{report.property.floor ?? '—'}</p>
+                      <p className="font-medium">
+                        {report.property.floor ?? "—"}
+                      </p>
                     </div>
                     {report.property.projectName ? (
                       <div>
@@ -348,11 +359,7 @@ export function ReportDetailView({
                       <div>
                         <p className="text-muted-foreground">{t.ownership}</p>
                         <p className="font-medium">
-                          {
-                            t.ownershipValues[
-                              report.property.ownershipStatus
-                            ]
-                          }
+                          {t.ownershipValues[report.property.ownershipStatus]}
                         </p>
                       </div>
                     ) : null}
@@ -411,7 +418,9 @@ export function ReportDetailView({
                   {groups.identity.map(attachmentTile)}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">{t.noAttachments}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t.noAttachments}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -428,7 +437,9 @@ export function ReportDetailView({
                   {groups.ownership.map(attachmentTile)}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">{t.noAttachments}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t.noAttachments}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -445,7 +456,9 @@ export function ReportDetailView({
                   {groups.damage.map(attachmentTile)}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">{t.noAttachments}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t.noAttachments}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -466,7 +479,7 @@ export function ReportDetailView({
                   }}
                   mapStyle={LIGHT_MAP_STYLE}
                   attributionControl={false}
-                  style={{ width: '100%', height: '100%' }}
+                  style={{ width: "100%", height: "100%" }}
                 >
                   <Marker
                     latitude={report.property.latitude}
@@ -479,7 +492,7 @@ export function ReportDetailView({
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="font-mono text-muted-foreground" dir="ltr">
-                  {report.property.latitude.toFixed(6)},{' '}
+                  {report.property.latitude.toFixed(6)},{" "}
                   {report.property.longitude.toFixed(6)}
                 </span>
                 <a
@@ -495,7 +508,7 @@ export function ReportDetailView({
             </CardContent>
           </Card>
 
-          {report.status === 'REJECTED' && report.rejectionReason ? (
+          {report.status === "REJECTED" && report.rejectionReason ? (
             <Card className="border-destructive/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg text-destructive">
@@ -527,24 +540,30 @@ export function ReportDetailView({
               </div>
             ) : null}
             {actionError ? (
-              <p className="text-sm font-medium text-destructive">{actionError}</p>
+              <p className="text-sm font-medium text-destructive">
+                {actionError}
+              </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-3">
               {rejecting ? (
                 <>
                   <Button
                     variant="destructive"
-                    disabled={updating || rejectReason.trim().length < 5}
-                    onClick={() => void applyStatus('REJECTED', rejectReason.trim())}
+                    disabled={
+                      updateStatus.isPending || rejectReason.trim().length < 5
+                    }
+                    onClick={() =>
+                      void applyStatus("REJECTED", rejectReason.trim())
+                    }
                   >
-                    {updating ? (
+                    {updateStatus.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : null}
                     {t.confirmReject}
                   </Button>
                   <Button
                     variant="ghost"
-                    disabled={updating}
+                    disabled={updateStatus.isPending}
                     onClick={() => setRejecting(false)}
                   >
                     {dict.common.cancel}
@@ -555,10 +574,10 @@ export function ReportDetailView({
                   {nextStatus ? (
                     <Button
                       size="lg"
-                      disabled={updating}
+                      disabled={updateStatus.isPending}
                       onClick={() => void applyStatus(nextStatus)}
                     >
-                      {updating ? (
+                      {updateStatus.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : null}
                       {
@@ -571,7 +590,7 @@ export function ReportDetailView({
                   <Button
                     size="lg"
                     variant="destructive"
-                    disabled={updating}
+                    disabled={updateStatus.isPending}
                     onClick={() => setRejecting(true)}
                   >
                     {td.nextAction.reject}
