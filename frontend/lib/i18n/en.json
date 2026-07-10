@@ -65,6 +65,7 @@
     "photosTitle": "Add photos of the damage",
     "photosButton": "Take or choose photos",
     "photosCounter": "Uploaded photos: {count}/{max}",
+    "photosCompressing": "Optimizing photos for upload…",
     "photosRemove": "Remove",
     "personalTitle": "Your identity & documents",
     "firstNameLabel": "First name",
@@ -125,6 +126,7 @@
       "rentalContractRequired": "Tenants must attach the rental contract",
       "vehicleTypeRequired": "Please choose the vehicle type",
       "propertyNumberRequired": "Please enter the official property number",
+      "propertyNumberNumeric": "The property number must contain digits only",
       "fileTooLarge": "This file is too large"
     }
   },

@@ -14,6 +14,7 @@ import {
   FileText,
   Flame,
   Home,
+  ImageDown,
   Loader2,
   MapPin,
   Paperclip,
@@ -32,6 +33,7 @@ import {
   submitDamageReportMultipart,
   validatePropertyNumber,
 } from "@/lib/api";
+import { compressImages } from "@/lib/image-compression";
 import { Dictionary, Locale, fill } from "@/lib/i18n/dictionaries";
 import {
   DamageSeverity,
@@ -143,6 +145,8 @@ const INITIAL_DOCUMENTS: DocumentFiles = {
 };
 
 const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
+/** Property number is strictly numeric — enforced on input and on blur. */
+const DIGITS_ONLY = /^[0-9]+$/;
 
 interface CitizenWizardFormProps {
   dict: Dictionary;
@@ -183,6 +187,7 @@ export function CitizenWizardForm({
 
   // Damage photos (≥1 mandatory) + documents.
   const [photos, setPhotos] = React.useState<File[]>([]);
+  const [isCompressing, setIsCompressing] = React.useState(false);
   const [documents, setDocuments] =
     React.useState<DocumentFiles>(INITIAL_DOCUMENTS);
   const photoInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -194,6 +199,8 @@ export function CitizenWizardForm({
   // Property-number availability (checked on blur, blocks submission).
   const [numberStatus, setNumberStatus] =
     React.useState<NumberCheckStatus>("idle");
+  // Set on blur when a non-numeric value slipped through (e.g. paste).
+  const [numberFormatError, setNumberFormatError] = React.useState(false);
 
   // Submission.
   const [submitStatus, setSubmitStatus] = React.useState<SubmitStatus>("idle");
@@ -253,15 +260,30 @@ export function CitizenWizardForm({
 
   // ────────────────────────────── Photos ─────────────────────────────
 
-  const appendPhotos = (
+  const appendPhotos = async (
     event: React.ChangeEvent<HTMLInputElement>,
-  ): void => {
+  ): Promise<void> => {
     const selected = Array.from(event.target.files ?? []);
-    setPhotos((previous) =>
-      [...previous, ...selected].slice(0, MAX_DAMAGE_PHOTOS),
-    );
     event.target.value = "";
     setStepError(null);
+    if (selected.length === 0) return;
+
+    // Only accept as many as remain under the 10-photo ceiling, then
+    // compress client-side so the whole batch clears Vercel's ~4.5MB
+    // serverless body cap before it ever hits the network.
+    const remaining = MAX_DAMAGE_PHOTOS - photos.length;
+    const accepted = selected.slice(0, Math.max(remaining, 0));
+    if (accepted.length === 0) return;
+
+    setIsCompressing(true);
+    try {
+      const compressed = await compressImages(accepted);
+      setPhotos((previous) =>
+        [...previous, ...compressed].slice(0, MAX_DAMAGE_PHOTOS),
+      );
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   // ─────────────── Property-number onBlur uniqueness check ───────────
@@ -270,8 +292,17 @@ export function CitizenWizardForm({
     const number = state.propertyNumber.trim();
     if (!number) {
       setNumberStatus("idle");
+      setNumberFormatError(false);
       return;
     }
+    // Strict digit-only guard runs on blur, before any network round-trip
+    // and well before the citizen ever reaches the Submit button.
+    if (!DIGITS_ONLY.test(number)) {
+      setNumberFormatError(true);
+      setNumberStatus("idle");
+      return;
+    }
+    setNumberFormatError(false);
     setNumberStatus("checking");
     const result = await validatePropertyNumber(number);
     if (result.ok) {
@@ -336,6 +367,11 @@ export function CitizenWizardForm({
         }
         if (!state.propertyNumber.trim()) {
           setStepError(errorText("propertyNumberRequired"));
+          return false;
+        }
+        if (!DIGITS_ONLY.test(state.propertyNumber.trim())) {
+          setNumberFormatError(true);
+          setStepError(errorText("propertyNumberNumeric"));
           return false;
         }
         if (numberStatus === "taken") {
@@ -503,6 +539,8 @@ export function CitizenWizardForm({
   const resetWizard = (): void => {
     form.reset();
     setPhotos([]);
+    setIsCompressing(false);
+    setNumberFormatError(false);
     setDocuments(INITIAL_DOCUMENTS);
     setLocationStatus("idle");
     setShowMapPicker(false);
@@ -553,7 +591,7 @@ export function CitizenWizardForm({
 
   const bigChoice = (selected: boolean): string =>
     cn(
-      "flex h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 text-lg font-semibold transition-all",
+      "flex h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 text-sm font-semibold transition-all md:text-lg",
       selected
         ? "border-primary bg-primary/10 text-primary shadow-md"
         : "border-input bg-background hover:border-primary/50 hover:bg-accent",
@@ -613,7 +651,7 @@ export function CitizenWizardForm({
 
   return (
     <Card className="mx-auto w-full max-w-xl">
-      <CardHeader className="space-y-3">
+      <CardHeader className="space-y-3 p-4 md:p-6">
         <p className="text-sm font-medium text-muted-foreground">
           {fill(t.stepOf, { current: step + 1, total: TOTAL_STEPS })}
         </p>
@@ -630,12 +668,12 @@ export function CitizenWizardForm({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-5 p-4 pt-0 md:space-y-6 md:p-6 md:pt-0">
         {/* Step 0 — four-card category: house / shop / apartment / vehicle */}
         {step === 0 ? (
           <section className="space-y-5">
-            <h2 className="text-2xl font-bold">{t.assetTitle}</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <h2 className="text-xl font-bold md:text-2xl">{t.assetTitle}</h2>
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               {(
                 [
                   ["HOUSE", Home, t.assetHouse],
@@ -664,7 +702,7 @@ export function CitizenWizardForm({
         {/* Step 1 — severity */}
         {step === 1 ? (
           <section className="space-y-5">
-            <h2 className="text-2xl font-bold">{t.severityTitle}</h2>
+            <h2 className="text-xl font-bold md:text-2xl">{t.severityTitle}</h2>
             <div className="grid grid-cols-1 gap-4">
               {(
                 [
@@ -693,7 +731,7 @@ export function CitizenWizardForm({
         {/* Step 2 — required description + required photos */}
         {step === 2 ? (
           <section className="space-y-5">
-            <h2 className="text-2xl font-bold">{t.describeTitle}</h2>
+            <h2 className="text-xl font-bold md:text-2xl">{t.describeTitle}</h2>
             <p className="text-muted-foreground">{t.describeHint}</p>
 
             <div className="space-y-2">
@@ -706,7 +744,7 @@ export function CitizenWizardForm({
                 value={state.description}
                 onChange={(e) => patch("description", e.target.value)}
                 placeholder={t.descriptionPlaceholder}
-                className="min-h-[120px] text-lg"
+                className="min-h-[120px] text-base md:text-lg"
               />
             </div>
 
@@ -715,25 +753,41 @@ export function CitizenWizardForm({
                 {t.photosTitle}
                 <Req />
               </h3>
+              {/* No `capture` attribute: mobile users get the native
+                  picker (gallery *or* camera), not a forced camera. */}
               <input
                 ref={photoInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 multiple
                 className="hidden"
-                onChange={appendPhotos}
+                onChange={(event) => void appendPhotos(event)}
               />
               <Button
                 type="button"
                 size="lg"
                 variant="secondary"
                 className="w-full"
-                disabled={photos.length >= MAX_DAMAGE_PHOTOS}
+                disabled={photos.length >= MAX_DAMAGE_PHOTOS || isCompressing}
                 onClick={() => photoInputRef.current?.click()}
               >
-                <Camera className="h-6 w-6" /> {t.photosButton}
+                {isCompressing ? (
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" />{" "}
+                    {t.photosCompressing}
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-6 w-6" /> {t.photosButton}
+                  </>
+                )}
               </Button>
+              {isCompressing ? (
+                <p className="inline-flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+                  <ImageDown className="h-4 w-4" />
+                  {t.photosCompressing}
+                </p>
+              ) : null}
               {/* Real-time counter against the strict 10-photo ceiling. */}
               <p
                 className={cn(
@@ -779,7 +833,7 @@ export function CitizenWizardForm({
         {/* Step 3 — location: GPS/pin + deep-precision address fields */}
         {step === 3 ? (
           <section className="space-y-5">
-            <h2 className="text-2xl font-bold">{t.locationTitle}</h2>
+            <h2 className="text-xl font-bold md:text-2xl">{t.locationTitle}</h2>
             <Button
               type="button"
               size="xl"
@@ -937,18 +991,31 @@ export function CitizenWizardForm({
                   <Input
                     id="propertyNumber"
                     dir="ltr"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={state.propertyNumber}
                     onChange={(e) => {
-                      patch("propertyNumber", e.target.value);
+                      // Block non-numeric keystrokes (and pasted text) at the
+                      // source so the field can only ever hold digits.
+                      patch(
+                        "propertyNumber",
+                        e.target.value.replace(/[^0-9]/g, ""),
+                      );
                       setNumberStatus("idle");
+                      setNumberFormatError(false);
                     }}
                     onBlur={() => void checkPropertyNumber()}
-                    aria-invalid={numberStatus === "taken"}
+                    aria-invalid={numberStatus === "taken" || numberFormatError}
                     className={cn(
-                      numberStatus === "taken" &&
+                      (numberStatus === "taken" || numberFormatError) &&
                         "border-destructive ring-2 ring-destructive/40",
                     )}
                   />
+                  {numberFormatError ? (
+                    <p className="rounded-lg bg-destructive/10 p-3 text-sm font-medium text-destructive">
+                      {errorText("propertyNumberNumeric")}
+                    </p>
+                  ) : null}
                   {numberStatus === "checking" ? (
                     <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -974,7 +1041,7 @@ export function CitizenWizardForm({
         {/* Step 4 — identity, documents, property/vehicle data & submit */}
         {step === 4 ? (
           <section className="space-y-5">
-            <h2 className="text-2xl font-bold">{t.personalTitle}</h2>
+            <h2 className="text-xl font-bold md:text-2xl">{t.personalTitle}</h2>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-2">
@@ -1222,7 +1289,13 @@ export function CitizenWizardForm({
             </Button>
           ) : null}
           {step < TOTAL_STEPS - 1 ? (
-            <Button type="button" size="lg" className="flex-1" onClick={goNext}>
+            <Button
+              type="button"
+              size="lg"
+              className="flex-1"
+              onClick={goNext}
+              disabled={isCompressing}
+            >
               {dict.common.next}
               <ChevronRight className="h-5 w-5 rtl:rotate-180" />
             </Button>

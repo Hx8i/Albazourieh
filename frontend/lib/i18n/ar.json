@@ -69,6 +69,7 @@
     "photosTitle": "أضف صوراً للأضرار",
     "photosButton": "التقاط أو اختيار صور",
     "photosCounter": "عدد الصور المرفوعة: {count}/{max}",
+    "photosCompressing": "جارٍ تحسين الصور للرفع…",
     "photosRemove": "إزالة",
     "personalTitle": "هويتك ومستنداتك",
     "firstNameLabel": "الاسم الأول",
@@ -131,6 +132,7 @@
       "rentalContractRequired": "على المستأجر إرفاق عقد الإيجار",
       "vehicleTypeRequired": "يرجى اختيار نوع الآلية",
       "propertyNumberRequired": "يرجى إدخال رقم العقار الرسمي",
+      "propertyNumberNumeric": "يجب أن يحتوي رقم العقار على أرقام فقط",
       "fileTooLarge": "حجم هذا الملف كبير جداً"
     }
   },
