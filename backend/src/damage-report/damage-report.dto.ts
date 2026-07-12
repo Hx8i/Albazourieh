@@ -228,3 +228,14 @@ export const listReportsQuerySchema = z
 export type ListReportsQueryDto = z.infer<typeof listReportsQuerySchema>;
 
 export const reportIdParamSchema = z.string().uuid('Report id must be a UUID');
+
+/**
+ * Public reference code: exactly 6 uppercase letters/digits (see
+ * reference-code.ts). Accepts lowercase input and normalises it, so a
+ * citizen typing "a4x8q2" still resolves.
+ */
+export const referenceCodeParamSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9]{6}$/, 'Reference code must be 6 letters or digits');

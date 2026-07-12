@@ -147,3 +147,24 @@ export interface SpatialPoint {
   neighborhood: string;
   reporterName: string;
 }
+
+/**
+ * Privacy-scrubbed payload from the public tracking endpoint
+ * (`GET /damage-reports/status/:code`). Mirrors the backend
+ * `PublicReportStatus` — status/category/timestamp only, no personal data.
+ */
+export interface PublicReportStatus {
+  referenceCode: string;
+  status: ReportStatus;
+  category: PropertyType;
+  /** ISO-8601 submission timestamp. */
+  submittedAt: string;
+}
+
+/** Public reference code: exactly 6 uppercase letters/digits (e.g. "A4X8Q2"). */
+export const REFERENCE_CODE_PATTERN = /^[A-Z0-9]{6}$/;
+
+/** Normalises then validates a citizen-typed reference code. */
+export function isValidReferenceCode(raw: string): boolean {
+  return REFERENCE_CODE_PATTERN.test(raw.trim().toUpperCase());
+}

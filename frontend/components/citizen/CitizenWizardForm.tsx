@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useForm, useStore } from "@tanstack/react-form";
 import {
   Building2,
@@ -641,6 +642,11 @@ export function CitizenWizardForm({
           ) : null}
           <Button size="xl" className="w-full" onClick={resetWizard}>
             {t.newReport}
+          </Button>
+          <Button asChild variant="outline" size="lg" className="w-full">
+            <Link href={`/${locale}/track-report`}>
+              {dict.trackReport.title}
+            </Link>
           </Button>
         </CardContent>
       </Card>

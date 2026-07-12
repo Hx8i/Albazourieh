@@ -28,11 +28,10 @@ export function proxy(request: NextRequest): NextResponse {
   );
   if (hasLocale) return NextResponse.next();
 
-  const acceptLanguage = request.headers.get('accept-language') ?? '';
-  const preferred = acceptLanguage.toLowerCase().startsWith('en') ? 'en' : 'ar';
-
+  // Arabic is the default for every visitor; users switch to English
+  // explicitly via the header toggle.
   const url = request.nextUrl.clone();
-  url.pathname = `/${preferred}${pathname === '/' ? '' : pathname}`;
+  url.pathname = `/ar${pathname === '/' ? '' : pathname}`;
   return NextResponse.redirect(url);
 }
 

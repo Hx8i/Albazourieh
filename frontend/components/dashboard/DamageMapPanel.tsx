@@ -60,31 +60,42 @@ const HTML_ESCAPES: Record<string, string> = {
 const escapeHtml = (value: string): string =>
   value.replace(/[&<>"]/g, (char) => HTML_ESCAPES[char] ?? char);
 
+type Severity = SpatialPoint['severity'];
+type MarkerKind = 'property' | 'vehicle';
+
 /**
- * White silhouette glyphs rendered as data-URL icons. With `mask: true`
- * deck.gl tints the opaque pixels with `getColor`, so one atlas entry per
- * shape covers every severity color.
+ * Authentic Lucide line glyphs (24×24, stroke-based). `house` for property
+ * reports, `car` for آلية reports — the thin-line silhouettes the prompt
+ * asked for, drawn in white inside the target disc.
  */
-const svgDataUrl = (paths: string): string =>
-  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><g fill="white">${paths}</g></svg>`,
-  )}`;
+const GLYPHS: Record<MarkerKind, string> = {
+  property:
+    '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/>' +
+    '<path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  vehicle:
+    '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>' +
+    '<circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
+};
 
-/** Building silhouette (houses, shops, apartments, legacy land). */
-const BUILDING_ICON_URL = svgDataUrl(
-  '<path d="M5 21V4a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v4h3a1 1 0 0 1 1 1v12h-7v-4h-3v4H5Z"/>',
-);
-
-/** Vehicle silhouette (آلية — cars, trucks, legacy motorcycles). */
-const VEHICLE_ICON_URL = svgDataUrl(
-  '<path d="M4.5 17.5a2.25 2.25 0 1 0 4.5 0h6a2.25 2.25 0 1 0 4.5 0h1a1.5 1.5 0 0 0 1.5-1.5v-3a2.5 2.5 0 0 0-2.5-2.5h-.8l-2.1-4.2A2 2 0 0 0 14.8 5H9.2a2 2 0 0 0-1.8 1.3L5.3 10.5h-.8A2.5 2.5 0 0 0 2 13v3a1.5 1.5 0 0 0 1.5 1.5h1Z"/>',
-);
-
-const VEHICLE_PROPERTY_TYPES: ReadonlySet<string> = new Set([
-  'VEHICLE',
-  'CAR',
-  'MOTORCYCLE',
-]);
+/**
+ * Composite "polished target" marker: a solid severity-coloured disc with a
+ * crisp white rim, and the white thin-line glyph on top. A faint dark copy
+ * of the glyph sits underneath so the white lines stay legible even on the
+ * lighter MINOR yellow. Rendered with `mask: false` so the disc keeps its
+ * colour and the glyph stays white (deck.gl does not tint it).
+ */
+const markerIconUrl = (kind: MarkerKind, hex: string): string => {
+  const glyph = GLYPHS[kind];
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="96" height="96">` +
+    `<circle cx="24" cy="24" r="15" fill="${hex}"/>` +
+    `<circle cx="24" cy="24" r="15" fill="none" stroke="#ffffff" stroke-opacity="0.92" stroke-width="1.5"/>` +
+    `<g transform="translate(24 24) scale(0.8) translate(-12 -12)" fill="none" stroke-linecap="round" stroke-linejoin="round">` +
+    `<g stroke="#0f172a" stroke-opacity="0.35" stroke-width="2.6">${glyph}</g>` +
+    `<g stroke="#ffffff" stroke-width="1.8">${glyph}</g>` +
+    `</g></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
 
 /** deck.gl icon descriptor for one report marker. */
 interface MarkerIcon {
@@ -95,38 +106,53 @@ interface MarkerIcon {
   mask: boolean;
 }
 
-const BUILDING_ICON: MarkerIcon = {
-  url: BUILDING_ICON_URL,
-  id: 'building',
-  width: 48,
-  height: 48,
-  mask: true,
+const SEVERITIES: readonly Severity[] = ['TOTAL', 'PARTIAL', 'MINOR'];
+const MARKER_KINDS: readonly MarkerKind[] = ['property', 'vehicle'];
+
+/** Precomputed 6-entry atlas (kind × severity) — stable icon identities. */
+const MARKER_ICONS: Record<string, MarkerIcon> = {};
+for (const kind of MARKER_KINDS) {
+  for (const severity of SEVERITIES) {
+    MARKER_ICONS[`${kind}-${severity}`] = {
+      url: markerIconUrl(kind, SEVERITY_HEX[severity]),
+      id: `${kind}-${severity}`,
+      width: 96,
+      height: 96,
+      mask: false,
+    };
+  }
 };
 
-const VEHICLE_ICON: MarkerIcon = {
-  url: VEHICLE_ICON_URL,
-  id: 'vehicle',
-  width: 48,
-  height: 48,
-  mask: true,
+const VEHICLE_PROPERTY_TYPES: ReadonlySet<string> = new Set([
+  'VEHICLE',
+  'CAR',
+  'MOTORCYCLE',
+]);
+
+const markerIconFor = (point: SpatialPoint): MarkerIcon => {
+  const kind: MarkerKind = VEHICLE_PROPERTY_TYPES.has(point.propertyType)
+    ? 'vehicle'
+    : 'property';
+  return MARKER_ICONS[`${kind}-${point.severity}`];
 };
 
 /** Marker glyph size in pixels, by severity (TOTAL reads largest). */
-const iconSize = (severity: SpatialPoint['severity']): number =>
-  severity === 'TOTAL' ? 30 : 24;
+const iconSize = (severity: Severity): number =>
+  severity === 'TOTAL' ? 38 : 30;
 
-/** Translucent hot-spot halo radius in pixels, by severity. */
-const hotspotRadius = (severity: SpatialPoint['severity']): number =>
-  severity === 'TOTAL' ? 17 : severity === 'PARTIAL' ? 16 : 15;
+/** Base radius (px) of the soft outer glow ring, by severity. */
+const glowRadius = (severity: Severity): number =>
+  severity === 'TOTAL' ? 12 : severity === 'PARTIAL' ? 14 : 13;
 
 /**
- * deck.gl IconLayer (category glyphs) stacked over a translucent
- * ScatterplotLayer "hot-spot" halo, drawn on a CARTO Positron basemap whose
- * road/street/place labels are boosted at load so Al Bazourieh's streets stay
- * readable (or a token-less Esri satellite layer). The halos alpha-blend over
- * the base, so road names remain visible beneath the markers. Hovering shows a
- * tooltip with the nearest road name (read from the vector tiles); clicking
- * opens a popover with that street and a link to the full case file.
+ * deck.gl IconLayer of composite "polished target" markers (severity-coloured
+ * disc + white thin-line Lucide glyph) over a soft ScatterplotLayer glow ring
+ * — TOTAL rings breathe via a throttled pulse. Drawn on a CARTO Positron
+ * basemap whose road/street/place labels are boosted at load so Al Bazourieh's
+ * streets stay readable (or a token-less Esri satellite layer), with the
+ * municipality geofence overlaid. Hovering shows a tooltip with the nearest
+ * road name (read from the vector tiles); clicking opens a popover with that
+ * street and a link to the full case file.
  */
 export function DamageMapPanel({
   dict,
@@ -197,31 +223,57 @@ export function DamageMapPanel({
     );
   }, [points]);
 
-  const hotspotLayer = React.useMemo(
+  // Gentle "breathing" pulse for TOTAL-destruction markers. Runs only while
+  // at least one TOTAL point is on-screen, throttled to ~16fps, and cancels
+  // on unmount — an attention cue that never churns the canvas when idle.
+  const hasTotal = React.useMemo(
+    () => points.some((p) => p.severity === 'TOTAL'),
+    [points],
+  );
+  const [pulse, setPulse] = React.useState(0);
+  React.useEffect(() => {
+    if (!hasTotal) {
+      setPulse(0);
+      return;
+    }
+    let frame = 0;
+    let last = 0;
+    const tick = (now: number): void => {
+      if (now - last > 60) {
+        setPulse((Math.sin(now / 500) + 1) / 2);
+        last = now;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [hasTotal]);
+
+  // Soft outer glow ring under each marker (no fill blob — it sits *behind*
+  // the composite target). TOTAL rings breathe: the radius swells and the
+  // fill fades as `pulse` rises.
+  const glowLayer = React.useMemo(
     () =>
       new ScatterplotLayer<SpatialPoint>({
-        id: 'damage-report-hotspots',
+        id: 'damage-report-glow',
         data: points,
         getPosition: (d: SpatialPoint) => [d.longitude, d.latitude],
-        getRadius: (d: SpatialPoint) => hotspotRadius(d.severity),
         radiusUnits: 'pixels',
-        // Soft translucent fill + firmer ring: reads as a "hot-spot" without
-        // painting over the street names underneath.
+        getRadius: (d: SpatialPoint) =>
+          d.severity === 'TOTAL'
+            ? glowRadius('TOTAL') + pulse * 8
+            : glowRadius(d.severity),
         getFillColor: (d: SpatialPoint): [number, number, number, number] => {
           const [r, g, b] = SEVERITY_COLORS[d.severity];
-          return [r, g, b, 55];
+          const alpha = d.severity === 'TOTAL' ? Math.round(150 - pulse * 80) : 90;
+          return [r, g, b, alpha];
         },
-        getLineColor: (d: SpatialPoint): [number, number, number, number] => {
-          const [r, g, b] = SEVERITY_COLORS[d.severity];
-          return [r, g, b, 190];
-        },
-        stroked: true,
+        stroked: false,
         filled: true,
-        lineWidthUnits: 'pixels',
-        getLineWidth: 1.5,
         pickable: false,
+        updateTriggers: { getRadius: pulse, getFillColor: pulse },
       }),
-    [points],
+    [points, pulse],
   );
 
   const iconLayer = React.useMemo(
@@ -230,19 +282,14 @@ export function DamageMapPanel({
         id: 'damage-report-icons',
         data: points,
         getPosition: (d: SpatialPoint) => [d.longitude, d.latitude],
-        // Category-aware markers: building glyph for property reports,
-        // vehicle glyph for "آلية" reports.
-        getIcon: (d: SpatialPoint) =>
-          VEHICLE_PROPERTY_TYPES.has(d.propertyType)
-            ? VEHICLE_ICON
-            : BUILDING_ICON,
-        // Severity tint: red / orange / yellow over the masked glyph.
-        getColor: (d: SpatialPoint) => SEVERITY_COLORS[d.severity],
+        // Composite target markers: house glyph for property, car glyph for
+        // آلية. The disc colour already encodes severity — no tint needed.
+        getIcon: markerIconFor,
         getSize: (d: SpatialPoint) => iconSize(d.severity),
         sizeUnits: 'pixels',
         pickable: true,
         autoHighlight: true,
-        highlightColor: [255, 255, 255, 110],
+        highlightColor: [255, 255, 255, 90],
       }),
     [points],
   );
@@ -339,7 +386,7 @@ export function DamageMapPanel({
           <DeckGL
             initialViewState={DASHBOARD_INITIAL_VIEW}
             controller
-            layers={[hotspotLayer, iconLayer]}
+            layers={[glowLayer, iconLayer]}
             getTooltip={getTooltip}
             onClick={handleClick}
             style={{ position: 'absolute', width: '100%', height: '100%' }}

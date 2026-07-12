@@ -10,6 +10,7 @@
 
 export type DomainErrorCode =
   | 'REPORT_NOT_FOUND'
+  | 'REFERENCE_CODE_NOT_FOUND'
   | 'INVALID_STATUS_TRANSITION'
   | 'REJECTION_REASON_REQUIRED'
   | 'DUPLICATE_RESOURCE'
@@ -47,6 +48,17 @@ export class ReportNotFoundError extends DomainError {
     super({
       en: `Damage report "${reportId}" was not found`,
       ar: `لم يتم العثور على البلاغ "${reportId}"`,
+    });
+  }
+}
+
+export class ReferenceCodeNotFoundError extends DomainError {
+  readonly code = 'REFERENCE_CODE_NOT_FOUND';
+
+  constructor(referenceCode: string) {
+    super({
+      en: `No report matches the reference code "${referenceCode}"`,
+      ar: `لا يوجد بلاغ يطابق الرمز المرجعي "${referenceCode}"`,
     });
   }
 }

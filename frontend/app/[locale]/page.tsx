@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import * as React from 'react';
+import { Button } from '@/components/ui/button';
 import { CitizenWizardForm } from '@/components/citizen/CitizenWizardForm';
 import { getDictionary, isLocale } from '@/lib/i18n/dictionaries';
 
@@ -25,6 +27,13 @@ export default async function HomePage({
         <p className="mt-1 text-muted-foreground">{dict.landing.subtitle}</p>
       </div>
       <CitizenWizardForm dict={dict} locale={locale} />
+      <div className="text-center pt-4">
+        <Button asChild variant="outline">
+          <Link href={`/${locale}/track-report`}>
+            {dict.landing.trackExisting}
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

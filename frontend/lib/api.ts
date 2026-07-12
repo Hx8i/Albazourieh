@@ -3,6 +3,7 @@ import {
   DamageSeverity,
   MultipartPayload,
   PaginatedReports,
+  PublicReportStatus,
   ReportListItem,
   ReportStatus,
   SpatialPoint,
@@ -150,6 +151,18 @@ export function validatePropertyNumber(
   return request<{ available: boolean }>(
     `/properties/validate-number?${search.toString()}`,
   );
+}
+
+/**
+ * Public, unauthenticated status lookup for the citizen tracking page.
+ * The code is normalised (trim + uppercase) before it hits the API, which
+ * returns only status/category/timestamp — never any personal data.
+ */
+export function getPublicReportStatus(
+  referenceCode: string,
+): Promise<ApiResult<PublicReportStatus>> {
+  const code = encodeURIComponent(referenceCode.trim().toUpperCase());
+  return request<PublicReportStatus>(`/damage-reports/status/${code}`);
 }
 
 // ────────────────────────── Staff authentication ─────────────────────

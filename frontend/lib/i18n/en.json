@@ -15,7 +15,8 @@
   "landing": {
     "title": "Post-War Damage Assessment",
     "subtitle": "Report damage to your home, land, vehicle or shop — step by step, in a few minutes.",
-    "switchLanguage": "العربية"
+    "switchLanguage": "العربية",
+    "trackExisting": "Track an existing report"
   },
   "login": {
     "title": "Staff sign in",
@@ -351,6 +352,38 @@
       "RENTAL_CONTRACT": "Rental contract",
       "VEHICLE_REGISTRATION": "Vehicle papers",
       "RESIDENCY_PROOF": "Proof of residency"
+    }
+  },
+  "trackReport": {
+    "title": "Track your report",
+    "subtitle": "Enter the 6-character reference code you received after submitting your damage report to see its evaluation status.",
+    "codeLabel": "Reference code",
+    "codePlaceholder": "A4X8Q2",
+    "codeHint": "6 letters or numbers, e.g. A4X8Q2",
+    "submit": "Check status",
+    "searching": "Checking…",
+    "invalidCode": "Please enter a valid 6-character code (letters and numbers).",
+    "notFound": "No report matches this reference code. Double-check the code from your submission confirmation.",
+    "networkError": "Could not reach the server. Please check your connection and try again.",
+    "resultHeading": "Report status",
+    "referenceLabel": "Reference",
+    "categoryLabel": "Category",
+    "submittedLabel": "Submitted",
+    "currentStatus": "Current status",
+    "rejectedNote": "This report was not approved. For details, please contact the municipality with your reference code.",
+    "steps": {
+      "submitted": "Received",
+      "underReview": "Under review",
+      "verified": "Verified",
+      "approved": "Approved & archived",
+      "rejected": "Not approved"
+    },
+    "stepHint": {
+      "submitted": "Your report reached the municipal servers.",
+      "underReview": "A staff member is inspecting your photos and documents.",
+      "verified": "The damage has been confirmed by the municipality.",
+      "approved": "Entered into the municipal recovery catalog.",
+      "rejected": "The report could not be approved."
     }
   }
 }

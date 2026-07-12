@@ -27,6 +27,7 @@ import {
   UpdateReportStatusDto,
   listReportsQuerySchema,
   multipartPayloadSchema,
+  referenceCodeParamSchema,
   reportIdParamSchema,
   spatialQuerySchema,
   updateReportStatusSchema,
@@ -34,6 +35,7 @@ import {
 import {
   DamageReportWithRelations,
   PaginatedReports,
+  PublicReportStatus,
   SpatialPoint,
   StatusSummary,
 } from './damage-report.repository';
@@ -84,6 +86,22 @@ export class DamageReportController {
     }
     const payload = validateWithSchema(multipartPayloadSchema, parsed);
     return this.service.submitMultipart(payload, files);
+  }
+
+  /**
+   * Public citizen tracking: look up a report's evaluation status by its
+   * 6-character reference code. Unauthenticated by design (no JwtAuthGuard),
+   * but rate-limited and privacy-scrubbed — the service returns only the
+   * status, category and submission time, never any personal data. Placed
+   * before `:id` so the two-segment path always resolves here.
+   */
+  @Get('status/:code')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async publicStatus(
+    @Param('code', new ZodValidationPipe(referenceCodeParamSchema))
+    code: string,
+  ): Promise<PublicReportStatus> {
+    return this.service.getPublicStatus(code);
   }
 
   /** Municipality staff: filterable, searchable, paginated report inbox. */

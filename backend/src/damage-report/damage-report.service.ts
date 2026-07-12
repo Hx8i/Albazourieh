@@ -4,6 +4,7 @@ import { TtlCacheService } from "../common/cache/ttl-cache.service";
 import {
   InvalidStatusTransitionError,
   MissingRequiredFileError,
+  ReferenceCodeNotFoundError,
   RejectionReasonRequiredError,
   ReportNotFoundError,
 } from "../common/errors/domain.errors";
@@ -21,6 +22,7 @@ import {
   DamageReportWithRelations,
   PaginatedReports,
   PersistReportInput,
+  PublicReportStatus,
   SpatialPoint,
   StatusSummary,
 } from "./damage-report.repository";
@@ -265,6 +267,19 @@ export class DamageReportService {
       throw new ReportNotFoundError(id);
     }
     return report;
+  }
+
+  /**
+   * Public, unauthenticated status lookup for the citizen tracking page.
+   * The repository already scrubs the payload to status/category/timestamp
+   * only; here we just enforce existence with a bilingual 404.
+   */
+  async getPublicStatus(referenceCode: string): Promise<PublicReportStatus> {
+    const status = await this.repository.findPublicByCode(referenceCode);
+    if (!status) {
+      throw new ReferenceCodeNotFoundError(referenceCode);
+    }
+    return status;
   }
 
   // ───────────────────────── Review lifecycle ────────────────────────

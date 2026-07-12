@@ -148,6 +148,19 @@ export interface SpatialFilter {
   limit: number;
 }
 
+/**
+ * Privacy-scrubbed status payload for the public citizen tracking page.
+ * Deliberately excludes every personal/identifying field.
+ */
+export interface PublicReportStatus {
+  referenceCode: string;
+  status: ReportStatus;
+  /** Generic category only (PropertyType), never the full property record. */
+  category: PropertyType;
+  /** ISO-8601 submission timestamp. */
+  submittedAt: string;
+}
+
 /** Minimal payload shaped for direct deck.gl layer ingestion. */
 export interface SpatialPoint {
   id: string;
@@ -299,6 +312,32 @@ export class DamageReportRepository {
       where: { id },
       ...reportWithRelations,
     });
+  }
+
+  /**
+   * Public status lookup by reference code. Selects ONLY the non-sensitive
+   * fields the citizen tracking page is allowed to see — no reporter,
+   * phone, description, attachments or rejection notes ever leave here.
+   */
+  async findPublicByCode(
+    referenceCode: string,
+  ): Promise<PublicReportStatus | null> {
+    const row = await this.prisma.damageReport.findUnique({
+      where: { referenceCode },
+      select: {
+        referenceCode: true,
+        status: true,
+        createdAt: true,
+        property: { select: { type: true } },
+      },
+    });
+    if (!row) return null;
+    return {
+      referenceCode: row.referenceCode,
+      status: row.status,
+      category: row.property.type,
+      submittedAt: row.createdAt.toISOString(),
+    };
   }
 
   async list(filter: ListReportsFilter): Promise<PaginatedReports> {
