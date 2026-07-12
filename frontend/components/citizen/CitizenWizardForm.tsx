@@ -277,7 +277,7 @@ export function CitizenWizardForm({
     setShowMapPicker(true);
   };
 
-  const grabLocation = async (): Promise<void> => {
+  const grabLocation = (): void => {
     if (!("geolocation" in navigator)) {
       setLocationStatus("unsupported");
       return;
@@ -291,24 +291,11 @@ export function CitizenWizardForm({
       return;
     }
 
-    // Pre-flight (where supported): if the permission is already hard-denied,
-    // mobile browsers skip the prompt entirely and fail fast — inspect the
-    // state up front so we can explain instead of appearing broken.
-    if ("permissions" in navigator) {
-      try {
-        const status: PermissionStatus = await navigator.permissions.query({
-          name: "geolocation",
-        });
-        if (status.state === "denied") {
-          setLocationStatus("denied");
-          setShowMapPicker(true);
-          return;
-        }
-      } catch {
-        // Older Safari lacks the query — fall through to the native prompt.
-      }
-    }
-
+    // CRITICAL for iOS Safari: getCurrentPosition MUST be called synchronously
+    // inside the tap handler. Any `await` before it (e.g. a permissions.query
+    // pre-flight) severs the user-gesture chain and Safari silently drops the
+    // permission prompt — which is why this worked on desktop but not mobile.
+    // We therefore detect a hard denial reactively, from the error code.
     setLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       applyPosition,
@@ -914,7 +901,7 @@ export function CitizenWizardForm({
                   : "default"
               }
               className="w-full"
-              onClick={() => void grabLocation()}
+              onClick={grabLocation}
               disabled={locationStatus === "loading"}
             >
               {locationStatus === "loading" ? (
