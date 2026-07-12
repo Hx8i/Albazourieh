@@ -16,6 +16,7 @@ import {
   Home,
   ImageDown,
   Loader2,
+  Locate,
   MapPin,
   Paperclip,
   Store,
@@ -77,10 +78,30 @@ type LocationStatus =
   | "success"
   | "imprecise"
   | "error"
-  | "unsupported";
+  | "unsupported"
+  | "insecure"
+  | "denied";
 
 /** Above this radius (meters), treat a GPS fix as unreliable and prompt for map confirmation. */
 const IMPRECISE_ACCURACY_METERS = 100;
+
+/** First attempt: fresh, high-accuracy GPS fix, bounded so mobile UIs never hang. */
+const GEO_HIGH_ACCURACY: PositionOptions = {
+  enableHighAccuracy: true,
+  timeout: 8000,
+  maximumAge: 0,
+};
+
+/**
+ * Retry attempt for cold-GPS timeouts: cell/wifi positioning and a
+ * slightly stale cached fix beat surfacing an error — the accuracy gate
+ * below still routes imprecise fixes to the map for confirmation.
+ */
+const GEO_FALLBACK: PositionOptions = {
+  enableHighAccuracy: false,
+  timeout: 8000,
+  maximumAge: 60_000,
+};
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 type NumberCheckStatus = "idle" | "checking" | "available" | "taken";
 
@@ -233,28 +254,78 @@ export function CitizenWizardForm({
 
   // ─────────────────────────── Geolocation ───────────────────────────
 
-  const grabLocation = (): void => {
+  /** Push a captured fix into the form; imprecise fixes open the map to confirm. */
+  const applyPosition = (position: GeolocationPosition): void => {
+    patchMany({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    });
+    setMapPicked(false);
+    if (position.coords.accuracy > IMPRECISE_ACCURACY_METERS) {
+      setLocationStatus("imprecise");
+      setShowMapPicker(true);
+    } else {
+      setLocationStatus("success");
+    }
+  };
+
+  /** Terminal failure: explain permission denials, otherwise offer the map. */
+  const failLocation = (error: GeolocationPositionError): void => {
+    setLocationStatus(
+      error.code === error.PERMISSION_DENIED ? "denied" : "error",
+    );
+    setShowMapPicker(true);
+  };
+
+  const grabLocation = async (): Promise<void> => {
     if (!("geolocation" in navigator)) {
       setLocationStatus("unsupported");
       return;
     }
+    // Mobile browsers silently refuse geolocation outside a secure context
+    // (e.g. testing over http://192.168.x.x). Surface it instead of letting
+    // the button appear to do nothing — the map picker still works.
+    if (!window.isSecureContext) {
+      setLocationStatus("insecure");
+      setShowMapPicker(true);
+      return;
+    }
+
+    // Pre-flight (where supported): if the permission is already hard-denied,
+    // mobile browsers skip the prompt entirely and fail fast — inspect the
+    // state up front so we can explain instead of appearing broken.
+    if ("permissions" in navigator) {
+      try {
+        const status: PermissionStatus = await navigator.permissions.query({
+          name: "geolocation",
+        });
+        if (status.state === "denied") {
+          setLocationStatus("denied");
+          setShowMapPicker(true);
+          return;
+        }
+      } catch {
+        // Older Safari lacks the query — fall through to the native prompt.
+      }
+    }
+
     setLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
-      (position: GeolocationPosition) => {
-        patchMany({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-        setMapPicked(false);
-        if (position.coords.accuracy > IMPRECISE_ACCURACY_METERS) {
-          setLocationStatus("imprecise");
-          setShowMapPicker(true);
-        } else {
-          setLocationStatus("success");
+      applyPosition,
+      (error: GeolocationPositionError) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          failLocation(error);
+          return;
         }
+        // Cold GPS frequently can't produce a high-accuracy fix inside the
+        // timeout; retry once with relaxed constraints before giving up.
+        navigator.geolocation.getCurrentPosition(
+          applyPosition,
+          failLocation,
+          GEO_FALLBACK,
+        );
       },
-      () => setLocationStatus("error"),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      GEO_HIGH_ACCURACY,
     );
   };
 
@@ -843,7 +914,7 @@ export function CitizenWizardForm({
                   : "default"
               }
               className="w-full"
-              onClick={grabLocation}
+              onClick={() => void grabLocation()}
               disabled={locationStatus === "loading"}
             >
               {locationStatus === "loading" ? (
@@ -859,15 +930,21 @@ export function CitizenWizardForm({
                 </>
               ) : (
                 <>
-                  <MapPin className="h-7 w-7" /> {t.locationGrab}
+                  <Locate className="h-7 w-7" /> {t.locationGrab}
                 </>
               )}
             </Button>
             {locationStatus === "error" ? (
               <p className="text-sm text-destructive">{t.locationError}</p>
             ) : null}
+            {locationStatus === "denied" ? (
+              <p className="text-sm text-destructive">{t.locationDenied}</p>
+            ) : null}
             {locationStatus === "unsupported" ? (
               <p className="text-sm text-amber-600">{t.locationUnsupported}</p>
+            ) : null}
+            {locationStatus === "insecure" ? (
+              <p className="text-sm text-amber-600">{t.locationInsecure}</p>
             ) : null}
             {state.latitude !== null && state.longitude !== null ? (
               <p
@@ -900,6 +977,15 @@ export function CitizenWizardForm({
                       patchMany({ latitude, longitude });
                       setMapPicked(true);
                       setLocationStatus("idle");
+                    }}
+                    locale={locale}
+                    labels={{
+                      landmarkLabel: t.locationLandmarkLabel,
+                      landmarkPlaceholder: t.locationLandmarkPlaceholder,
+                      pinHint: t.locationPinHint,
+                      basemapStreet: t.locationBasemapStreet,
+                      basemapSatellite: t.locationBasemapSatellite,
+                      recenter: t.locationRecenter,
                     }}
                   />
                   {mapPicked ? (

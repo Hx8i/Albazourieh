@@ -57,6 +57,14 @@
     "locationMapHint":
       "بعيد عن منزلك؟ اسحب الدبوس الأحمر إلى موقع عقارك، أو المس الخريطة.",
     "locationMapDone": "تم حفظ موقع الدبوس ✓",
+    "locationLandmarkLabel": "اقفز إلى أقرب مَعلَم",
+    "locationLandmarkPlaceholder": "اختر مكاناً مألوفاً…",
+    "locationPinHint": "💡 اسحب الدبوس الأحمر وضعه فوق سقف منزلك تماماً",
+    "locationBasemapStreet": "خريطة",
+    "locationBasemapSatellite": "قمر صناعي",
+    "locationRecenter": "العودة إلى وسط البلدة",
+    "locationDenied": "يرجى تفعيل صلاحية الوصول إلى الموقع من إعدادات المتصفح أو الهاتف لإستخدام الميزة.",
+    "locationInsecure": "يمنع المتصفح تحديد الموقع عبر الاتصالات غير المشفّرة (بدون HTTPS). استخدم الخريطة أدناه لوضع الدبوس بدلاً من ذلك.",
     "streetLabel": "الشارع",
     "streetPlaceholder": "مثال: الشارع الرئيسي",
     "projectNameLabel": "اسم المشروع / المبنى",
@@ -164,7 +172,8 @@
       "legendMinor": "ضرر طفيف",
       "openCase": "عرض ملف الحالة الكامل",
       "basemapStreet": "خريطة",
-      "basemapSatellite": "قمر صناعي"
+      "basemapSatellite": "قمر صناعي",
+      "nearestRoad": "أقرب طريق"
     },
     "filters": {
       "title": "التصفية",

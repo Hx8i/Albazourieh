@@ -53,6 +53,14 @@
     "locationPickOnMap": "Or choose the location on the map",
     "locationMapHint": "Away from home? Drag the red pin onto your property, or tap the map.",
     "locationMapDone": "Pin location saved ✓",
+    "locationLandmarkLabel": "Jump to a nearby landmark",
+    "locationLandmarkPlaceholder": "Choose a familiar place…",
+    "locationPinHint": "💡 Drag the red pin and place it directly over your roof",
+    "locationBasemapStreet": "Map",
+    "locationBasemapSatellite": "Satellite",
+    "locationRecenter": "Back to town centre",
+    "locationDenied": "Please enable location services in your browser/device settings to use this feature.",
+    "locationInsecure": "Location detection is blocked on unencrypted (non-HTTPS) connections. Please use the map below to place the pin instead.",
     "streetLabel": "Street",
     "streetPlaceholder": "Example: main street",
     "projectNameLabel": "Project / building name",
@@ -158,7 +166,8 @@
       "legendMinor": "Minor damage",
       "openCase": "View full case file",
       "basemapStreet": "Map",
-      "basemapSatellite": "Satellite"
+      "basemapSatellite": "Satellite",
+      "nearestRoad": "Nearest road"
     },
     "filters": {
       "title": "Filters",

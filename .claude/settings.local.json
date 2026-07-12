@@ -4,7 +4,16 @@
       "Bash(pnpm --version)",
       "Bash(pnpm install *)",
       "Bash(pnpm exec *)",
-      "Bash(./node_modules/.bin/prisma generate *)"
+      "Bash(./node_modules/.bin/prisma generate *)",
+      "Bash(node -e \"const e=require\\('./lib/i18n/en.json'\\); console.log\\(JSON.stringify\\(e.dashboard.map,null,1\\)\\)\")",
+      "Bash(node -e \"const a=require\\('./lib/i18n/ar.json'\\); console.log\\(JSON.stringify\\(a.dashboard.map,null,1\\)\\)\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(node -e \"const e=require\\('./lib/i18n/en.json'\\); const w=e.wizard; for \\(const k of Object.keys\\(w\\)\\) if \\(/location|map/i.test\\(k\\)\\) console.log\\(k, '=', JSON.stringify\\(w[k]\\)\\)\")",
+      "Bash(node -e \"const e=require\\('./lib/i18n/en.json'\\); console.log\\(Object.keys\\(e\\)\\)\")",
+      "Bash(curl -s https://basemaps.cartocdn.com/gl/positron-gl-style/style.json -o /tmp/positron.json)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"console.log\\(require.resolve\\('@types/geojson/package.json'\\)\\)\")",
+      "Bash(pnpm add *)"
     ]
   }
 }

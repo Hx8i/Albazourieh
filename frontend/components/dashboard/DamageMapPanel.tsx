@@ -3,10 +3,15 @@
 import * as React from 'react';
 import Link from 'next/link';
 import DeckGL from '@deck.gl/react';
-import { IconLayer } from '@deck.gl/layers';
+import { IconLayer, ScatterplotLayer } from '@deck.gl/layers';
 import type { PickingInfo } from '@deck.gl/core';
-import Map from 'react-map-gl/maplibre';
-import { ExternalLink, Layers, Map as MapIcon, X } from 'lucide-react';
+import Map, {
+  Layer,
+  type LayerProps,
+  type MapRef,
+  Source,
+} from 'react-map-gl/maplibre';
+import { ExternalLink, Layers, Map as MapIcon, Milestone, X } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,12 +21,16 @@ import { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 import { SpatialPoint } from '@/lib/schemas/damage-report.schema';
 import {
   BasemapMode,
+  BAZOURIEH_BOUNDARY,
+  BOUNDARY_LINE_STYLES,
   DASHBOARD_INITIAL_VIEW,
+  enhanceRoadLabels,
   LIGHT_MAP_STYLE,
+  readFeatureName,
+  type RoadLayerIds,
   SATELLITE_MAP_STYLE,
   SEVERITY_COLORS,
   SEVERITY_HEX,
-  STREET_MAP_STYLE,
 } from '@/components/map/map-config';
 
 interface DamageMapPanelProps {
@@ -35,7 +44,21 @@ interface SelectedPoint {
   point: SpatialPoint;
   x: number;
   y: number;
+  /** Nearest labelled road under the marker, resolved from the vector tiles. */
+  street: string | null;
 }
+
+const EMPTY_ROAD_LAYERS: RoadLayerIds = { labelLayerIds: [], lineLayerIds: [] };
+
+/** Minimal escaping for map-sourced text injected into the tooltip's innerHTML. */
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+};
+const escapeHtml = (value: string): string =>
+  value.replace(/[&<>"]/g, (char) => HTML_ESCAPES[char] ?? char);
 
 /**
  * White silhouette glyphs rendered as data-URL icons. With `mask: true`
@@ -88,11 +111,22 @@ const VEHICLE_ICON: MarkerIcon = {
   mask: true,
 };
 
+/** Marker glyph size in pixels, by severity (TOTAL reads largest). */
+const iconSize = (severity: SpatialPoint['severity']): number =>
+  severity === 'TOTAL' ? 30 : 24;
+
+/** Translucent hot-spot halo radius in pixels, by severity. */
+const hotspotRadius = (severity: SpatialPoint['severity']): number =>
+  severity === 'TOTAL' ? 17 : severity === 'PARTIAL' ? 16 : 15;
+
 /**
- * deck.gl ScatterplotLayer over a light street basemap (or a token-less
- * Esri satellite layer) centred on Al Bazourieh. Severity is colour-
- * encoded (red/orange/yellow); hovering shows a tooltip and clicking
- * opens a shadcn popover with a link to the full case file.
+ * deck.gl IconLayer (category glyphs) stacked over a translucent
+ * ScatterplotLayer "hot-spot" halo, drawn on a CARTO Positron basemap whose
+ * road/street/place labels are boosted at load so Al Bazourieh's streets stay
+ * readable (or a token-less Esri satellite layer). The halos alpha-blend over
+ * the base, so road names remain visible beneath the markers. Hovering shows a
+ * tooltip with the nearest road name (read from the vector tiles); clicking
+ * opens a popover with that street and a link to the full case file.
  */
 export function DamageMapPanel({
   dict,
@@ -104,6 +138,55 @@ export function DamageMapPanel({
   const [selected, setSelected] = React.useState<SelectedPoint | null>(null);
   const [basemap, setBasemap] = React.useState<BasemapMode>('street');
 
+  const mapRef = React.useRef<MapRef | null>(null);
+  const roadLayersRef = React.useRef<RoadLayerIds>(EMPTY_ROAD_LAYERS);
+
+  // Boost the road/street/place labels once a street style has loaded, and
+  // cache the vector layer ids used for street-name hit-testing on hover.
+  const applyEnhancements = React.useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    roadLayersRef.current = enhanceRoadLabels(map);
+  }, []);
+
+  // Re-boost after a basemap swap: the satellite raster carries no labels, and
+  // switching back to street rebuilds the vector style from scratch.
+  React.useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    if (basemap !== 'street') {
+      roadLayersRef.current = EMPTY_ROAD_LAYERS;
+      return;
+    }
+    map.once('idle', applyEnhancements);
+  }, [basemap, applyEnhancements]);
+
+  /**
+   * Nearest labelled road under a screen pixel, read straight from the CARTO
+   * vector tiles (no geocoding). Queries a small box so thin road lines and
+   * sparse labels are still catchable near the cursor.
+   */
+  const lookupStreet = React.useCallback((x: number, y: number): string | null => {
+    const map = mapRef.current?.getMap();
+    const { labelLayerIds, lineLayerIds } = roadLayersRef.current;
+    const layers = [...lineLayerIds, ...labelLayerIds];
+    if (!map || layers.length === 0) return null;
+    const features = map.queryRenderedFeatures(
+      [
+        [x - 6, y - 6],
+        [x + 6, y + 6],
+      ],
+      { layers },
+    );
+    for (const feature of features) {
+      const name = readFeatureName(
+        feature.properties as Record<string, unknown> | null,
+      );
+      if (name) return name;
+    }
+    return null;
+  }, []);
+
   // Points can be re-fetched while a popover is open; drop the selection
   // if its report disappears from the current filter slice.
   React.useEffect(() => {
@@ -114,7 +197,34 @@ export function DamageMapPanel({
     );
   }, [points]);
 
-  const layer = React.useMemo(
+  const hotspotLayer = React.useMemo(
+    () =>
+      new ScatterplotLayer<SpatialPoint>({
+        id: 'damage-report-hotspots',
+        data: points,
+        getPosition: (d: SpatialPoint) => [d.longitude, d.latitude],
+        getRadius: (d: SpatialPoint) => hotspotRadius(d.severity),
+        radiusUnits: 'pixels',
+        // Soft translucent fill + firmer ring: reads as a "hot-spot" without
+        // painting over the street names underneath.
+        getFillColor: (d: SpatialPoint): [number, number, number, number] => {
+          const [r, g, b] = SEVERITY_COLORS[d.severity];
+          return [r, g, b, 55];
+        },
+        getLineColor: (d: SpatialPoint): [number, number, number, number] => {
+          const [r, g, b] = SEVERITY_COLORS[d.severity];
+          return [r, g, b, 190];
+        },
+        stroked: true,
+        filled: true,
+        lineWidthUnits: 'pixels',
+        getLineWidth: 1.5,
+        pickable: false,
+      }),
+    [points],
+  );
+
+  const iconLayer = React.useMemo(
     () =>
       new IconLayer<SpatialPoint>({
         id: 'damage-report-icons',
@@ -128,23 +238,46 @@ export function DamageMapPanel({
             : BUILDING_ICON,
         // Severity tint: red / orange / yellow over the masked glyph.
         getColor: (d: SpatialPoint) => SEVERITY_COLORS[d.severity],
-        getSize: (d: SpatialPoint) => (d.severity === 'TOTAL' ? 34 : 27),
+        getSize: (d: SpatialPoint) => iconSize(d.severity),
         sizeUnits: 'pixels',
         pickable: true,
         autoHighlight: true,
-        highlightColor: [255, 255, 255, 90],
+        highlightColor: [255, 255, 255, 110],
       }),
     [points],
   );
+
+  // Municipality geofence: adaptive theme per basemap (dark slate on the
+  // light street map, translucent cyan over satellite imagery). Only the
+  // paint object changes on toggle, so MapLibre diffs the layer in place
+  // instead of re-initializing the canvas.
+  const boundaryLayer = React.useMemo((): LayerProps => {
+    const lineStyle = BOUNDARY_LINE_STYLES[basemap];
+    return {
+      id: 'bazourieh-boundary-line',
+      type: 'line',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': lineStyle.color,
+        'line-width': lineStyle.width,
+        'line-opacity': lineStyle.opacity,
+      },
+    };
+  }, [basemap]);
 
   const getTooltip = React.useCallback(
     (info: PickingInfo<SpatialPoint>) => {
       if (!info.object) return null;
       const point = info.object;
+      const street = lookupStreet(info.x, info.y);
+      const streetLine = street
+        ? `<div style="margin-top:2px;opacity:.85">${t.map.nearestRoad}: ${escapeHtml(street)}</div>`
+        : '';
       return {
         html: `<div style="font-family:inherit">
           <strong>${t.asset[point.propertyType]}</strong> — ${t.severity[point.severity]}<br/>
-          ${point.neighborhood}
+          ${escapeHtml(point.neighborhood)}
+          ${streetLine}
         </div>`,
         style: {
           backgroundColor: '#111827',
@@ -155,16 +288,24 @@ export function DamageMapPanel({
         },
       };
     },
-    [t],
+    [t, lookupStreet],
   );
 
-  const handleClick = React.useCallback((info: PickingInfo<SpatialPoint>) => {
-    if (info.object) {
-      setSelected({ point: info.object, x: info.x, y: info.y });
-    } else {
-      setSelected(null);
-    }
-  }, []);
+  const handleClick = React.useCallback(
+    (info: PickingInfo<SpatialPoint>) => {
+      if (info.object) {
+        setSelected({
+          point: info.object,
+          x: info.x,
+          y: info.y,
+          street: lookupStreet(info.x, info.y),
+        });
+      } else {
+        setSelected(null);
+      }
+    },
+    [lookupStreet],
+  );
 
   return (
     <Card>
@@ -198,18 +339,31 @@ export function DamageMapPanel({
           <DeckGL
             initialViewState={DASHBOARD_INITIAL_VIEW}
             controller
-            layers={[layer]}
+            layers={[hotspotLayer, iconLayer]}
             getTooltip={getTooltip}
             onClick={handleClick}
             style={{ position: 'absolute', width: '100%', height: '100%' }}
           >
             <Map
+              ref={mapRef}
+              onLoad={applyEnhancements}
               mapStyle={
                 basemap === 'satellite' ? SATELLITE_MAP_STYLE : LIGHT_MAP_STYLE
               }
               attributionControl={false}
               reuseMaps
-            />
+            >
+              {/* Administrative boundary of Al Bazourieh (stub geometry —
+                  see BAZOURIEH_BOUNDARY). Declarative Source/Layer children
+                  are re-added by react-map-gl after every style swap. */}
+              <Source
+                id="bazourieh-boundary"
+                type="geojson"
+                data={BAZOURIEH_BOUNDARY}
+              >
+                <Layer {...boundaryLayer} />
+              </Source>
+            </Map>
           </DeckGL>
 
           {/* Basemap toggle: normal street map ⇄ satellite imagery */}
@@ -276,6 +430,12 @@ export function DamageMapPanel({
               <p className="text-sm text-muted-foreground">
                 {selected.point.neighborhood}
               </p>
+              {selected.street ? (
+                <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <Milestone className="h-3.5 w-3.5 text-muted-foreground" />
+                  {selected.street}
+                </p>
+              ) : null}
               <div className="mt-2 flex gap-2">
                 <Badge
                   variant={
