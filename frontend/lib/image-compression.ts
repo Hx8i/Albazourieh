@@ -11,12 +11,17 @@ import imageCompression from "browser-image-compression";
  * avoids the 413 FUNCTION_PAYLOAD_TOO_LARGE the endpoint was hitting.
  */
 
-/** Tuned so a full 10-photo batch stays well under Vercel's ~4.5MB body cap. */
+/**
+ * Tuned so even the worst case — 10 damage photos plus 3 document images
+ * (~13 files) — stays under Vercel's ~4.5MB serverless body cap:
+ * 13 × 0.3MB ≈ 3.9MB, leaving headroom for the JSON payload and multipart
+ * overhead. 1280px keeps damage detail and ID-card text legible.
+ */
 const COMPRESSION_OPTIONS = {
   /** Cap the longest edge — plenty of detail for damage assessment. */
   maxWidthOrHeight: 1280,
   /** Hard ceiling per image; the library iterates quality to hit it. */
-  maxSizeMB: 0.4,
+  maxSizeMB: 0.3,
   /** Off-main-thread so the UI stays responsive on low-end phones. */
   useWebWorker: true,
   /**

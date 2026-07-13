@@ -136,7 +136,8 @@
       "vehicleTypeRequired": "Please choose the vehicle type",
       "propertyNumberRequired": "Please enter the official property number",
       "propertyNumberNumeric": "The property number must contain digits only",
-      "fileTooLarge": "This file is too large"
+      "fileTooLarge": "This file is too large",
+      "uploadTooLarge": "Your photos and documents are too large to send together. Please remove a few photos or attach smaller files, then try again."
     }
   },
   "portalNav": {

@@ -35,7 +35,7 @@ import {
   submitDamageReportMultipart,
   validatePropertyNumber,
 } from "@/lib/api";
-import { compressImages } from "@/lib/image-compression";
+import { compressImage, compressImages } from "@/lib/image-compression";
 import { Dictionary, Locale, fill } from "@/lib/i18n/dictionaries";
 import {
   DamageSeverity,
@@ -61,6 +61,13 @@ const LocationPickerMap = dynamic(
 
 const TOTAL_STEPS = 5;
 const MAX_DAMAGE_PHOTOS = 10;
+/**
+ * Vercel serverless functions reject request bodies over ~4.5MB before the
+ * backend (or its CORS layer) ever runs, so an oversized upload surfaces as a
+ * confusing 413/CORS error. Images are compressed client-side; this guard
+ * catches the residual case (e.g. a large PDF deed) with a clear message.
+ */
+const SAFE_UPLOAD_BYTES = 4_200_000;
 
 const VEHICLE_KINDS: readonly VehicleKind[] = [
   "CAR",
@@ -212,6 +219,9 @@ export function CitizenWizardForm({
   const [isCompressing, setIsCompressing] = React.useState(false);
   const [documents, setDocuments] =
     React.useState<DocumentFiles>(INITIAL_DOCUMENTS);
+  // Which document field is currently being compressed (for inline feedback).
+  const [compressingDoc, setCompressingDoc] =
+    React.useState<keyof DocumentFiles | null>(null);
   const photoInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Vehicle-type searchable combobox.
@@ -249,6 +259,31 @@ export function CitizenWizardForm({
   const setDocument = (key: keyof DocumentFiles, file: File | null): void => {
     setDocuments((previous) => ({ ...previous, [key]: file }));
     setStepError(null);
+  };
+
+  /**
+   * Store a chosen document, compressing image files first. Phone-camera
+   * shots of IDs/deeds are several MB each and, appended raw, push the
+   * whole multipart body past Vercel's ~4.5MB serverless cap (a 413 that
+   * surfaces in the browser as a misleading CORS error). PDFs are left
+   * untouched — compressImage passes non-images straight through.
+   */
+  const chooseDocument = async (
+    key: keyof DocumentFiles,
+    file: File | null,
+  ): Promise<void> => {
+    setStepError(null);
+    if (!file) {
+      setDocument(key, null);
+      return;
+    }
+    setCompressingDoc(key);
+    try {
+      const prepared = await compressImage(file);
+      setDocument(key, prepared);
+    } finally {
+      setCompressingDoc(null);
+    }
   };
 
   const errorText = (key: WizardErrorKey): string => t.errors[key];
@@ -565,7 +600,7 @@ export function CitizenWizardForm({
             },
           };
 
-    const result = await submitDamageReportMultipart(payload, {
+    const uploadFiles = {
       damagePhotos: photos,
       nationalId: documents.nationalId,
       propertyDeed: isVehicle ? null : documents.propertyDeed,
@@ -578,7 +613,27 @@ export function CitizenWizardForm({
         !isVehicle && state.ownership === "OWNER"
           ? documents.residencyProof
           : null,
-    });
+    };
+
+    // Final safeguard against Vercel's ~4.5MB body cap: photos and
+    // image documents are already compressed, but a large PDF could still
+    // tip the total over. Fail fast with a clear message instead of the
+    // opaque 413/CORS error the platform would otherwise return.
+    const totalBytes = [
+      ...uploadFiles.damagePhotos,
+      uploadFiles.nationalId,
+      uploadFiles.propertyDeed,
+      uploadFiles.rentalContract,
+      uploadFiles.vehicleRegistration,
+      uploadFiles.residencyProof,
+    ].reduce((sum, file) => sum + (file?.size ?? 0), 0);
+    if (totalBytes > SAFE_UPLOAD_BYTES) {
+      setSubmitError(t.errors.uploadTooLarge);
+      setSubmitStatus("error");
+      return;
+    }
+
+    const result = await submitDamageReportMultipart(payload, uploadFiles);
 
     if (result.ok) {
       setReferenceCode(result.data.referenceCode);
@@ -688,6 +743,11 @@ export function CitizenWizardForm({
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
+      ) : compressingDoc === key ? (
+        <div className="flex h-14 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input text-sm text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          {t.photosCompressing}
+        </div>
       ) : (
         <label className="flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-input text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground">
           <FileText className="h-5 w-5" />
@@ -698,8 +758,8 @@ export function CitizenWizardForm({
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0] ?? null;
-              setDocument(key, file);
               event.target.value = "";
+              void chooseDocument(key, file);
             }}
           />
         </label>
