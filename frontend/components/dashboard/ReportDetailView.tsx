@@ -26,6 +26,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ADMIN_PATH } from "@/lib/constants";
 import { Dictionary, Locale } from "@/lib/i18n/dictionaries";
 import { toApiError } from "@/lib/query-client";
@@ -835,18 +842,21 @@ export function ReportDetailView({
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <Label htmlFor="reject-field">{t.rejectFieldLabel}</Label>
-                        <select
-                          id="reject-field"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        <Select
                           value={rejectField}
-                          onChange={(e) => setRejectField(e.target.value)}
+                          onValueChange={(value: string) => setRejectField(value)}
+                          dir={locale === 'ar' ? 'rtl' : 'ltr'}
                         >
-                          <option value="">{t.rejectFieldPlaceholder}</option>
-                          <option value="Name">{t.rejectedFields.Name}</option>
-                          <option value="Address">{t.rejectedFields.Address}</option>
-                          <option value="Description">{t.rejectedFields.Description}</option>
-                          <option value="Media">{t.rejectedFields.Media}</option>
-                        </select>
+                          <SelectTrigger id="reject-field">
+                            <SelectValue placeholder={t.rejectFieldPlaceholder} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Name">{t.rejectedFields.Name}</SelectItem>
+                            <SelectItem value="Address">{t.rejectedFields.Address}</SelectItem>
+                            <SelectItem value="Description">{t.rejectedFields.Description}</SelectItem>
+                            <SelectItem value="Media">{t.rejectedFields.Media}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor="reject-reason">{t.rejectReasonLabel}</Label>
