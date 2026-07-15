@@ -8,6 +8,7 @@ import {
   ReportStatus,
   SpatialPoint,
   StatusSummary,
+  AdminEditPayload,
 } from './schemas/damage-report.schema';
 
 const API_BASE =
@@ -260,10 +261,11 @@ export function updateReportStatus(
   id: string,
   status: ReportStatus,
   rejectionReason?: string,
+  rejectedField?: string,
 ): Promise<ApiResult<ReportListItem>> {
   return request<ReportListItem>(
     `/damage-reports/${id}/status`,
-    { method: 'PATCH', body: JSON.stringify({ status, rejectionReason }) },
+    { method: 'PATCH', body: JSON.stringify({ status, rejectionReason, rejectedField }) },
     { staffAuth: true },
   );
 }
@@ -320,6 +322,7 @@ export type AuditActionType =
   | 'CREATE_STAFF'
   | 'DELETE_STAFF'
   | 'UPDATE_REPORT_STATUS'
+  | 'EDIT_REPORT_DATA'
   | 'EXPORT_DATA';
 
 export interface AuditLogItem {
@@ -329,6 +332,7 @@ export interface AuditLogItem {
   actionType: AuditActionType;
   targetId: string;
   details: string;
+  detailsAr: string | null;
   ipAddress: string | null;
   createdAt: string;
 }
@@ -376,3 +380,33 @@ export function logExportEvent(rowCount: number): Promise<ApiResult<null>> {
     { staffAuth: true },
   );
 }
+
+/** Admin edit: update report data fields. */
+export function adminEditReport(
+  id: string,
+  payload: AdminEditPayload,
+): Promise<ApiResult<ReportListItem>> {
+  return request<ReportListItem>(
+    `/damage-reports/${id}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    { staffAuth: true },
+  );
+}
+
+/** Admin edit: delete a specific attachment. */
+export function deleteReportAttachment(
+  reportId: string,
+  attachmentId: string,
+): Promise<ApiResult<null>> {
+  return request<null>(
+    `/damage-reports/${reportId}/attachments/${attachmentId}`,
+    {
+      method: 'DELETE',
+    },
+    { staffAuth: true },
+  );
+}
+

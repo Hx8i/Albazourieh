@@ -217,7 +217,7 @@ export function TrackReportView({
       </Card>
 
       {state.phase === 'found' ? (
-        <ResultCard data={state.data} dict={dict} formattedDate={dateFormatter} />
+        <ResultCard data={state.data} dict={dict} formattedDate={dateFormatter} locale={locale} />
       ) : null}
     </div>
   );
@@ -228,10 +228,12 @@ function ResultCard({
   data,
   dict,
   formattedDate,
+  locale,
 }: {
   data: PublicReportStatus;
   dict: Dictionary;
   formattedDate: Intl.DateTimeFormat;
+  locale: Locale;
 }): React.JSX.Element {
   const t = dict.trackReport;
   const steps = buildTimeline(data.status);
@@ -279,9 +281,26 @@ function ResultCard({
         </div>
 
         {data.status === 'REJECTED' ? (
-          <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-            {t.rejectedNote}
-          </p>
+          <div className="space-y-3">
+            <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+              {t.rejectedNote}
+              {data.rejectedField ? (
+                <>
+                  <br />
+                  <span className="font-semibold">
+                    {locale === 'ar' ? 'الحقل المرفوض: ' : 'Rejected field: '}
+                  </span>
+                  {data.rejectedField === 'Name' && (locale === 'ar' ? 'الاسم' : 'Name')}
+                  {data.rejectedField === 'Address' && (locale === 'ar' ? 'العنوان' : 'Address')}
+                  {data.rejectedField === 'Description' && (locale === 'ar' ? 'وصف الضرر' : 'Description')}
+                  {data.rejectedField === 'Media' && (locale === 'ar' ? 'المرفقات والأدلة' : 'Media')}
+                </>
+              ) : null}
+            </p>
+            <p className="text-sm font-medium text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg p-3">
+              {t.rejectionNotice}
+            </p>
+          </div>
         ) : null}
       </CardContent>
     </Card>

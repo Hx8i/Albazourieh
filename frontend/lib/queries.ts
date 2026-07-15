@@ -25,9 +25,11 @@ import {
   submitDamageReportMultipart,
   updateReportStatus,
   validatePropertyNumber,
+  adminEditReport,
+  deleteReportAttachment,
 } from './api';
 import { unwrap } from './query-client';
-import { MultipartPayload, ReportStatus } from './schemas/damage-report.schema';
+import { MultipartPayload, ReportStatus, AdminEditPayload } from './schemas/damage-report.schema';
 
 /**
  * Hierarchical query keys. Invalidating a parent key (e.g. `reports.all`)
@@ -101,11 +103,13 @@ export function useUpdateReportStatusMutation() {
       id,
       status,
       rejectionReason,
+      rejectedField,
     }: {
       id: string;
       status: ReportStatus;
       rejectionReason?: string;
-    }) => unwrap(updateReportStatus(id, status, rejectionReason)),
+      rejectedField?: string;
+    }) => unwrap(updateReportStatus(id, status, rejectionReason, rejectedField)),
     onSuccess: (updated) => {
       // Seed the detail cache directly so the case file reflects the new
       // status instantly, then invalidate everything else that could be
@@ -206,3 +210,39 @@ export function useSubmitReportMutation() {
     }) => unwrap(submitDamageReportMultipart(payload, files)),
   });
 }
+
+export function useAdminEditReportMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: AdminEditPayload;
+    }) => unwrap(adminEditReport(id, payload)),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.reports.detail(updated.id), updated);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
+export function useDeleteAttachmentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      reportId,
+      attachmentId,
+    }: {
+      reportId: string;
+      attachmentId: string;
+    }) => unwrap(deleteReportAttachment(reportId, attachmentId)),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.detail(variables.reportId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+

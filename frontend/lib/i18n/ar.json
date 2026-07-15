@@ -86,12 +86,12 @@
     "lastNameLabel": "اسم العائلة",
     "phoneLabel": "رقم الهاتف",
     "phonePlaceholder": "03 123 456",
-    "nationalIdLabel": "بطاقة الهوية (صورة أو PDF)",
+    "nationalIdLabel": "شيء يعرّف عنك (هوية، إخراج قيد، جواز سفر، دفتر سواقة...) *",
     "residencyProofLabel": "إثبات سكن (فاتورة كهرباء/ماء أو إفادة مختار)",
     "ownershipTitle": "هل أنت مالك أم مستأجر؟",
     "ownerOption": "أنا المالك",
     "tenantOption": "أنا مستأجر",
-    "propertyDeedLabel": "سند الملكية",
+    "propertyDeedLabel": "إثبات ملكية (سند ملكية أو إفادة عقارية أو عقد بيع ممسوح...)",
     "deedOptionalHint": "مطلوب فقط في حال توفره",
     "rentalContractLabel": "عقد الإيجار",
     "vehicleTypeLabel": "نوع الآلية",
@@ -109,6 +109,7 @@
     "ownerPhoneLabel": "رقم هاتف مالك العقار",
     "chooseFile": "اختيار ملف",
     "propertyNumberLabel": "رقم العقار الرسمي",
+    "unitAreaLabel": "مساحة الوحدة السكنية (بالمتر المربع)",
     "propertyNumberChecking": "جارٍ التحقق من رقم العقار…",
     "propertyNumberTaken": "رقم العقار هذا مقدَّم مسبقاً وهو قيد التقييم.",
     "propertyNumberOk": "رقم العقار متاح ✓",
@@ -129,7 +130,7 @@
       "streetRequired": "يرجى إدخال الشارع",
       "floorRequired": "يرجى إدخال الطابق",
       "districtRequired": "يرجى إدخال المدينة أو البلدة",
-      "descriptionRequired": "يرجى وصف الضرر كتابةً (10 أحرف على الأقل)",
+      "descriptionRequired": "يرجى وصف الضرر كتابةً (3 أحرف على الأقل)",
       "damagePhotoRequired": "يرجى إرفاق صورة واحدة على الأقل للأضرار",
       "customVehicleTypeRequired": "يرجى تحديد نوع الآلية",
       "locationRequired": "يرجى تحديد موقعك أو وضع الدبوس على الخريطة أولاً",
@@ -143,7 +144,9 @@
       "propertyNumberRequired": "يرجى إدخال رقم العقار الرسمي",
       "propertyNumberNumeric": "يجب أن يحتوي رقم العقار على أرقام فقط",
       "fileTooLarge": "حجم هذا الملف كبير جداً",
-      "uploadTooLarge": "الصور والمستندات كبيرة جداً لإرسالها معاً. يرجى حذف بعض الصور أو إرفاق ملفات أصغر ثم المحاولة مرة أخرى."
+      "uploadTooLarge": "الصور والمستندات كبيرة جداً لإرسالها معاً. يرجى حذف بعض الصور أو إرفاق ملفات أصغر ثم المحاولة مرة أخرى.",
+      "unitAreaRequired": "يرجى إدخال مساحة الوحدة السكنية",
+      "unitAreaPositive": "يجب أن تكون المساحة رقماً صحيحاً موجباً"
     }
   },
   "portalNav": {
@@ -312,6 +315,7 @@
       "CREATE_STAFF": "أنشأ حساب موظف",
       "DELETE_STAFF": "ألغى حساب موظف",
       "UPDATE_REPORT_STATUS": "غيّر حالة بلاغ",
+      "EDIT_REPORT_DATA": "عدّل بيانات بلاغ",
       "EXPORT_DATA": "صدّر بيانات"
     },
     "empty": "لا توجد إجراءات إدارية مسجَّلة بعد.",
@@ -346,6 +350,14 @@
     "rejectionReason": "سبب الرفض",
     "rejectReasonLabel": "لماذا يُرفض هذا البلاغ؟",
     "rejectReasonPlaceholder": "٥ أحرف على الأقل…",
+    "rejectFieldLabel": "الحقل المرفوض",
+    "rejectFieldPlaceholder": "اختر الحقل الذي تسبب في الرفض…",
+    "rejectedFields": {
+      "Name": "الاسم",
+      "Address": "العنوان",
+      "Description": "وصف الضرر",
+      "Media": "المرفقات والأدلة"
+    },
     "confirmReject": "تأكيد الرفض",
     "reviewedBy": "يُسجَّل اسم المراجع تلقائياً من حسابك.",
     "ownership": "صفة الإشغال",
@@ -360,7 +372,16 @@
       "RENTAL_CONTRACT": "عقد الإيجار",
       "VEHICLE_REGISTRATION": "أوراق الآلية",
       "RESIDENCY_PROOF": "إثبات السكن"
-    }
+    },
+    "editMode": "وضع التعديل",
+    "editModeToggle": "تعديل البيانات",
+    "saveChanges": "حفظ التعديلات",
+    "cancelEdit": "إلغاء",
+    "saving": "جارٍ حفظ التعديلات…",
+    "editSuccess": "تم حفظ التعديلات بنجاح.",
+    "unitArea": "مساحة الوحدة السكنية (م²)",
+    "deleteAttachment": "حذف المرفق",
+    "confirmDeleteAttachment": "هل أنت متأكد من حذف هذا المرفق؟ لا يمكن التراجع."
   },
   "trackReport": {
     "title": "تتبّع بلاغك",
@@ -379,6 +400,7 @@
     "submittedLabel": "تاريخ التقديم",
     "currentStatus": "الحالة الحالية",
     "rejectedNote": "لم تتم الموافقة على هذا البلاغ. لمزيد من التفاصيل، يرجى مراجعة البلدية مع رمزك المرجعي.",
+    "rejectionNotice": "ملاحظة: يرجى مراجعة البلدية شخصياً لمتابعة أو حل أو تقديم توضيحات إضافية بشأن الجزء المرفوض من طلبكم.",
     "steps": {
       "submitted": "تم الاستلام",
       "underReview": "قيد التدقيق",

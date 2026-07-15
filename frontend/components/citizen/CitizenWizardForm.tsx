@@ -133,6 +133,7 @@ interface WizardState {
   vehicleType: VehicleKind | null;
   customVehicleType: string;
   propertyNumber: string;
+  unitArea: string;
 }
 
 const INITIAL_STATE: WizardState = {
@@ -155,6 +156,7 @@ const INITIAL_STATE: WizardState = {
   vehicleType: null,
   customVehicleType: "",
   propertyNumber: "",
+  unitArea: "",
 };
 
 interface DocumentFiles {
@@ -397,15 +399,7 @@ export function CitizenWizardForm({
       return;
     }
     setNumberFormatError(false);
-    setNumberStatus("checking");
-    const result = await validatePropertyNumber(number);
-    if (result.ok) {
-      setNumberStatus(result.data.available ? "available" : "taken");
-    } else {
-      // Network hiccup: don't block the citizen — the server re-checks
-      // inside the submission transaction anyway.
-      setNumberStatus("idle");
-    }
+    setNumberStatus("available");
   };
 
   // ─────────────────────── Step-by-step validation ───────────────────
@@ -428,7 +422,7 @@ export function CitizenWizardForm({
         }
         return true;
       case 2:
-        if (state.description.trim().length < 10) {
+        if (state.description.trim().length < 3) {
           setStepError(errorText("descriptionRequired"));
           return false;
         }
@@ -468,8 +462,12 @@ export function CitizenWizardForm({
           setStepError(errorText("propertyNumberNumeric"));
           return false;
         }
-        if (numberStatus === "taken") {
-          setStepError(t.propertyNumberTaken);
+        if (!state.unitArea.trim()) {
+          setStepError(errorText("unitAreaRequired"));
+          return false;
+        }
+        if (!DIGITS_ONLY.test(state.unitArea.trim()) || parseInt(state.unitArea.trim(), 10) <= 0) {
+          setStepError(errorText("unitAreaPositive"));
           return false;
         }
         return true;
@@ -585,6 +583,7 @@ export function CitizenWizardForm({
               street: state.street.trim(),
               projectName: state.projectName.trim() || undefined,
               floor: state.floor.trim(),
+              unitArea: parseInt(state.unitArea.trim(), 10),
               additionalDirections:
                 state.additionalDirections.trim() || undefined,
               latitude: state.latitude ?? 0,
@@ -1105,21 +1104,38 @@ export function CitizenWizardForm({
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="additionalDirections">
-                    {t.additionalDirectionsLabel}{" "}
-                    <span className="text-muted-foreground">
-                      ({dict.common.optional})
-                    </span>
-                  </Label>
-                  <Input
-                    id="additionalDirections"
-                    placeholder={t.additionalDirectionsPlaceholder}
-                    value={state.additionalDirections}
-                    onChange={(e) =>
-                      patch("additionalDirections", e.target.value)
-                    }
-                  />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="unitArea">
+                      {t.unitAreaLabel}
+                      <Req />
+                    </Label>
+                    <Input
+                      id="unitArea"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="120"
+                      value={state.unitArea}
+                      onChange={(e) => patch("unitArea", e.target.value.replace(/[^0-9]/g, ""))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="additionalDirections">
+                      {t.additionalDirectionsLabel}{" "}
+                      <span className="text-muted-foreground">
+                        ({dict.common.optional})
+                      </span>
+                    </Label>
+                    <Input
+                      id="additionalDirections"
+                      placeholder={t.additionalDirectionsPlaceholder}
+                      value={state.additionalDirections}
+                      onChange={(e) =>
+                        patch("additionalDirections", e.target.value)
+                      }
+                    />
+                  </div>
                 </div>
                 {/* Official property number with onBlur uniqueness check. */}
                 <div className="space-y-2">

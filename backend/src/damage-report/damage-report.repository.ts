@@ -9,7 +9,6 @@ import {
   PropertyType,
   ReportStatus,
 } from '../generated/prisma/client';
-import { DuplicatePropertyNumberError } from '../common/errors/domain.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportSortField, SortDirection } from './damage-report.dto';
 import { generateReferenceCode } from './reference-code';
@@ -33,6 +32,7 @@ const reportWithRelations = {
         street: true,
         projectName: true,
         floor: true,
+        unitArea: true,
         additionalDirections: true,
         addressLine: true,
         latitude: true,
@@ -115,6 +115,7 @@ export interface PersistReportInput {
     street?: string;
     projectName?: string;
     floor?: string;
+    unitArea?: number;
     additionalDirections?: string;
     addressLine?: string;
     latitude: number;
@@ -159,6 +160,7 @@ export interface PublicReportStatus {
   category: PropertyType;
   /** ISO-8601 submission timestamp. */
   submittedAt: string;
+  rejectedField?: string | null;
 }
 
 /** Minimal payload shaped for direct deck.gl layer ingestion. */
@@ -192,12 +194,8 @@ export class DamageReportRepository {
 
   /** True when a property with this official number is already filed. */
   async propertyNumberExists(realEstateNumber: string): Promise<boolean> {
-    const count = await this.prisma.property.count({
-      where: {
-        realEstateNumber: { equals: realEstateNumber, mode: 'insensitive' },
-      },
-    });
-    return count > 0;
+    // Relaxation: official property numbers are no longer unique.
+    return false;
   }
 
   /**
@@ -230,22 +228,8 @@ export class DamageReportRepository {
     referenceCode: string,
   ): Promise<DamageReportWithRelations> {
     return this.prisma.$transaction(async (tx) => {
-      if (input.enforceUniquePropertyNumber && input.property.realEstateNumber) {
-        const duplicate = await tx.property.findFirst({
-          where: {
-            realEstateNumber: {
-              equals: input.property.realEstateNumber,
-              mode: 'insensitive',
-            },
-          },
-          select: { id: true },
-        });
-        if (duplicate) {
-          throw new DuplicatePropertyNumberError(
-            input.property.realEstateNumber,
-          );
-        }
-      }
+      // Relaxation: official property numbers are no longer unique.
+      // Uniqueness check block removed to allow duplicate submissions.
 
       const user = await tx.user.upsert({
         where: { phoneNumber: input.reporter.phoneNumber },
@@ -328,6 +312,7 @@ export class DamageReportRepository {
         referenceCode: true,
         status: true,
         createdAt: true,
+        rejectedField: true,
         property: { select: { type: true } },
       },
     });
@@ -337,6 +322,7 @@ export class DamageReportRepository {
       status: row.status,
       category: row.property.type,
       submittedAt: row.createdAt.toISOString(),
+      rejectedField: row.rejectedField,
     };
   }
 
@@ -406,12 +392,101 @@ export class DamageReportRepository {
     id: string,
     status: ReportStatus,
     rejectionReason: string | null,
+    rejectedField: string | null,
     reviewedById: string | null,
   ): Promise<DamageReport> {
     return this.prisma.damageReport.update({
       where: { id },
-      data: { status, rejectionReason, reviewedById },
+      data: { status, rejectionReason, rejectedField, reviewedById },
     });
+  }
+
+  // ──────────── Admin report data editing ────────────
+
+  /** Field-level partial updates on the reporter, property, and report. */
+  async updateReportData(
+    reportId: string,
+    reporterUpdates: Partial<{ fullName: string; phoneNumber: string }>,
+    propertyUpdates: Partial<{
+      street: string;
+      projectName: string;
+      floor: string;
+      unitArea: number;
+      additionalDirections: string;
+      realEstateNumber: string;
+      ownerPhoneNumber: string;
+      latitude: number;
+      longitude: number;
+    }>,
+    reportUpdates: Partial<{ description: string }>,
+  ): Promise<DamageReportWithRelations> {
+    const report = await this.prisma.damageReport.findUniqueOrThrow({
+      where: { id: reportId },
+      select: { reporterId: true, propertyId: true },
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      if (Object.keys(reporterUpdates).length > 0) {
+        await tx.user.update({
+          where: { id: report.reporterId },
+          data: reporterUpdates,
+        });
+      }
+      if (Object.keys(propertyUpdates).length > 0) {
+        // Sync neighborhood with street when street changes.
+        const propData: Record<string, unknown> = { ...propertyUpdates };
+        if (propertyUpdates.street) {
+          propData.neighborhood = propertyUpdates.street;
+        }
+        await tx.property.update({
+          where: { id: report.propertyId },
+          data: propData,
+        });
+      }
+      if (Object.keys(reportUpdates).length > 0) {
+        await tx.damageReport.update({
+          where: { id: reportId },
+          data: reportUpdates,
+        });
+      }
+
+      return tx.damageReport.findUniqueOrThrow({
+        where: { id: reportId },
+        ...reportWithRelations,
+      });
+    }, { timeout: 30000, maxWait: 30000 });
+  }
+
+  /** Replace an attachment row: delete old, create new in a transaction. */
+  async replaceAttachment(
+    reportId: string,
+    oldAttachmentId: string,
+    newData: {
+      url: string;
+      type: AttachmentType;
+      label?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+    },
+  ): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.attachment.delete({ where: { id: oldAttachmentId } }),
+      this.prisma.attachment.create({
+        data: {
+          reportId,
+          url: newData.url,
+          type: newData.type,
+          label: newData.label,
+          mimeType: newData.mimeType,
+          sizeBytes: newData.sizeBytes,
+        },
+      }),
+    ]);
+  }
+
+  /** Remove an attachment by id. */
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    await this.prisma.attachment.delete({ where: { id: attachmentId } });
   }
 
   /**

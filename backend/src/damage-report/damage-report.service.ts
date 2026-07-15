@@ -10,6 +10,7 @@ import {
 } from "../common/errors/domain.errors";
 import { UploadsService } from "../uploads/uploads.service";
 import {
+  AdminEditReportDto,
   AttachmentLabel,
   ListReportsQueryDto,
   MultipartPayloadDto,
@@ -168,6 +169,7 @@ export class DamageReportService {
             street: payload.location.street,
             projectName: payload.location.projectName,
             floor: payload.location.floor,
+            unitArea: payload.location.unitArea,
             additionalDirections: payload.location.additionalDirections,
             latitude: payload.location.latitude,
             longitude: payload.location.longitude,
@@ -307,6 +309,7 @@ export class DamageReportService {
       id,
       dto.status,
       dto.status === "REJECTED" ? (dto.rejectionReason ?? null) : null,
+      dto.status === "REJECTED" ? (dto.rejectedField ?? null) : null,
       reviewer.id,
     );
 
@@ -318,17 +321,221 @@ export class DamageReportService {
       targetId: report.referenceCode,
       details:
         dto.status === "REJECTED"
-          ? `${report.status} → ${dto.status} (${dto.rejectionReason ?? ""})`
+          ? `${report.status} → ${dto.status} (Reason: ${dto.rejectionReason ?? ""}, Field: ${dto.rejectedField ?? ""})`
           : `${report.status} → ${dto.status}`,
+      detailsAr:
+        dto.status === "REJECTED"
+          ? `تغيير الحالة: ${report.status} → ${dto.status} (السبب: ${dto.rejectionReason ?? ""}, الحقل: ${dto.rejectedField ?? ""})`
+          : `تغيير الحالة: ${report.status} → ${dto.status}`,
       ipAddress: reviewer.ipAddress,
     });
 
     this.cache.invalidatePrefix(CACHE_PREFIX);
     return this.getReportById(id);
   }
+
+  // ─────────────────────── Admin data editing ─────────────────────────
+
+  /**
+   * Full admin override: compares the incoming flat DTO against the stored
+   * record, builds dual-language audit fragments, persists the deltas,
+   * and records an immutable audit trail entry.
+   */
+  async adminEditReport(
+    id: string,
+    dto: AdminEditReportDto,
+    reviewer: ActingReviewer,
+  ): Promise<DamageReportWithRelations> {
+    const report = await this.getReportById(id);
+
+    // ── Split fullName into parts for diff comparison ──
+    const nameParts = report.reporter.fullName.split(' ');
+    const currentFirst = nameParts[0] ?? '';
+    const currentMiddle = nameParts[1] ?? '';
+    const currentLast = nameParts.slice(2).join(' ') || '';
+
+    const diffs: DiffFragment[] = [];
+
+    // Reporter diffs
+    const reporterUpdates: Partial<{ fullName: string; phoneNumber: string }> = {};
+    const newFirst = dto.firstName ?? currentFirst;
+    const newMiddle = dto.middleName ?? currentMiddle;
+    const newLast = dto.lastName ?? currentLast;
+
+    if (dto.firstName !== undefined) {
+      const d = buildFieldDiff('firstName', currentFirst, newFirst);
+      if (d) diffs.push(d);
+    }
+    if (dto.middleName !== undefined) {
+      const d = buildFieldDiff('middleName', currentMiddle, newMiddle);
+      if (d) diffs.push(d);
+    }
+    if (dto.lastName !== undefined) {
+      const d = buildFieldDiff('lastName', currentLast, newLast);
+      if (d) diffs.push(d);
+    }
+    if (dto.firstName !== undefined || dto.middleName !== undefined || dto.lastName !== undefined) {
+      const assembled = joinName(newFirst, newMiddle, newLast);
+      if (assembled !== report.reporter.fullName) {
+        reporterUpdates.fullName = assembled;
+      }
+    }
+    if (dto.phoneNumber !== undefined) {
+      const d = buildFieldDiff('phoneNumber', report.reporter.phoneNumber, dto.phoneNumber);
+      if (d) { diffs.push(d); reporterUpdates.phoneNumber = dto.phoneNumber; }
+    }
+
+    // Property diffs
+    const propertyUpdates: Record<string, unknown> = {};
+    const propFields: Array<{
+      dtoKey: keyof AdminEditReportDto;
+      dbKey: string;
+      reportVal: unknown;
+    }> = [
+      { dtoKey: 'street', dbKey: 'street', reportVal: report.property.street },
+      { dtoKey: 'projectName', dbKey: 'projectName', reportVal: report.property.projectName },
+      { dtoKey: 'floor', dbKey: 'floor', reportVal: report.property.floor },
+      { dtoKey: 'unitArea', dbKey: 'unitArea', reportVal: report.property.unitArea },
+      { dtoKey: 'additionalDirections', dbKey: 'additionalDirections', reportVal: report.property.additionalDirections },
+      { dtoKey: 'propertyNumber', dbKey: 'realEstateNumber', reportVal: report.property.realEstateNumber },
+      { dtoKey: 'ownerPhoneNumber', dbKey: 'ownerPhoneNumber', reportVal: report.property.ownerPhoneNumber },
+      { dtoKey: 'latitude', dbKey: 'latitude', reportVal: report.property.latitude },
+      { dtoKey: 'longitude', dbKey: 'longitude', reportVal: report.property.longitude },
+    ];
+    for (const { dtoKey, dbKey, reportVal } of propFields) {
+      const incomingVal = dto[dtoKey];
+      if (incomingVal !== undefined) {
+        const d = buildFieldDiff(dtoKey, reportVal as string | number | null, incomingVal as string | number);
+        if (d) { diffs.push(d); propertyUpdates[dbKey] = incomingVal; }
+      }
+    }
+
+    // Report-level diffs
+    const reportUpdates: Partial<{ description: string }> = {};
+    if (dto.description !== undefined) {
+      const d = buildFieldDiff('description', report.description, dto.description);
+      if (d) { diffs.push(d); reportUpdates.description = dto.description; }
+    }
+
+    // ── Persist & audit ──
+    const { detailsEn, detailsAr } = buildAuditDetails(reviewer.name, diffs, []);
+
+    await this.repository.updateReportData(
+      id,
+      reporterUpdates,
+      propertyUpdates as Parameters<typeof this.repository.updateReportData>[2],
+      reportUpdates,
+    );
+
+    await this.audit.record({
+      adminId: reviewer.id,
+      adminName: reviewer.name,
+      actionType: 'EDIT_REPORT_DATA',
+      targetId: report.referenceCode,
+      details: detailsEn,
+      detailsAr,
+      ipAddress: reviewer.ipAddress,
+    });
+
+    this.cache.invalidatePrefix(CACHE_PREFIX);
+    return this.getReportById(id);
+  }
+
+  /** Remove a specific attachment from a report (admin override). */
+  async deleteReportAttachment(
+    reportId: string,
+    attachmentId: string,
+    reviewer: ActingReviewer,
+  ): Promise<void> {
+    const report = await this.getReportById(reportId);
+    const attachment = report.attachments.find((a) => a.id === attachmentId);
+    if (!attachment) {
+      throw new ReportNotFoundError(attachmentId);
+    }
+
+    await this.repository.deleteAttachment(attachmentId);
+
+    await this.audit.record({
+      adminId: reviewer.id,
+      adminName: reviewer.name,
+      actionType: 'EDIT_REPORT_DATA',
+      targetId: report.referenceCode,
+      details: `Deleted attachment (${attachment.label ?? 'unlabelled'})`,
+      detailsAr: `حذف المرفق (${attachment.label ?? 'بدون تسمية'})`,
+      ipAddress: reviewer.ipAddress,
+    });
+  }
 }
 
 /** First + father's + family name, collapsed to one display string. */
 function joinName(first: string, middle: string, last: string): string {
-  return [first, middle, last].join(" ").replace(/\s+/g, " ").trim();
+  return [first, middle, last].join(' ').replace(/\s+/g, ' ').trim();
+}
+
+// ────────────────── Dual-language diff engine ──────────────────
+
+/** Human-readable field labels for the audit trail (EN / AR). */
+const FIELD_LABELS: Record<string, { en: string; ar: string }> = {
+  firstName: { en: 'First Name', ar: 'الاسم الأول' },
+  middleName: { en: "Father's Name", ar: 'اسم الأب' },
+  lastName: { en: 'Family Name', ar: 'اسم العائلة' },
+  phoneNumber: { en: 'Phone Number', ar: 'رقم الهاتف' },
+  street: { en: 'Street', ar: 'الشارع' },
+  projectName: { en: 'Project / Building', ar: 'اسم المشروع / المبنى' },
+  floor: { en: 'Floor', ar: 'الطابق' },
+  unitArea: { en: 'Unit Area', ar: 'مساحة الوحدة السكنية' },
+  additionalDirections: { en: 'Additional Directions', ar: 'دلالات إضافية' },
+  propertyNumber: { en: 'Property Number', ar: 'رقم العقار' },
+  ownerPhoneNumber: { en: "Owner's Phone", ar: 'هاتف مالك العقار' },
+  latitude: { en: 'Latitude', ar: 'خط العرض' },
+  longitude: { en: 'Longitude', ar: 'خط الطول' },
+  description: { en: 'Damage Description', ar: 'وصف الضرر' },
+};
+
+interface DiffFragment {
+  en: string;
+  ar: string;
+}
+
+function buildFieldDiff(
+  fieldKey: string,
+  oldValue: string | number | null | undefined,
+  newValue: string | number | null | undefined,
+): DiffFragment | null {
+  const oldStr = String(oldValue ?? '');
+  const newStr = String(newValue ?? '');
+  if (oldStr === newStr) return null;
+
+  const labels = FIELD_LABELS[fieldKey];
+  if (!labels) return null;
+
+  const unit = fieldKey === 'unitArea' ? ' sqm' : '';
+  const unitAr = fieldKey === 'unitArea' ? ' م²' : '';
+
+  return {
+    en: `updated ${labels.en} from '${oldStr}${unit}' to '${newStr}${unit}'`,
+    ar: `عدّل ${labels.ar} من '${oldStr}${unitAr}' إلى '${newStr}${unitAr}'`,
+  };
+}
+
+function buildAuditDetails(
+  adminName: string,
+  fragments: DiffFragment[],
+  assetFragments: DiffFragment[],
+): { detailsEn: string; detailsAr: string } {
+  const all = [...fragments, ...assetFragments];
+  if (all.length === 0) {
+    return {
+      detailsEn: `Staff ${adminName} opened edit mode but made no changes.`,
+      detailsAr: `فتح الموظف ${adminName} وضع التعديل ولكن لم يُجرِ تغييرات.`,
+    };
+  }
+
+  const enParts = all.map((f) => f.en).join(' and ');
+  const arParts = all.map((f) => f.ar).join(' و');
+
+  return {
+    detailsEn: `Staff ${adminName} ${enParts}.`,
+    detailsAr: `قام الموظف ${adminName} ب${arParts}.`,
+  };
 }

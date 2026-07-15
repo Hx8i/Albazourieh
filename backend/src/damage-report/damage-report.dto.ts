@@ -59,6 +59,7 @@ export const updateReportStatusSchema = z
   .object({
     status: reportStatusSchema,
     rejectionReason: z.string().trim().min(5).max(1000).optional(),
+    rejectedField: z.string().trim().max(100).optional(),
   })
   .strict();
 
@@ -78,7 +79,7 @@ const multipartReporterSchema = z.object({
 });
 
 const multipartReportSchema = z.object({
-  description: z.string().trim().min(10).max(5000),
+  description: z.string().trim().min(3).max(5000),
   severity: damageSeveritySchema,
 });
 
@@ -91,6 +92,7 @@ const propertyLocationSchema = z
     street: z.string().trim().min(2).max(120),
     projectName: z.string().trim().max(120).optional(),
     floor: z.string().trim().min(1).max(30),
+    unitArea: z.number().int().positive().optional(),
     additionalDirections: z.string().trim().max(255).optional(),
     district: z.string().trim().max(120).optional(),
   })
@@ -239,3 +241,43 @@ export const referenceCodeParamSchema = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z0-9]{6}$/, 'Reference code must be 6 letters or digits');
+
+// ─────────────── Admin report data editing (PATCH :id) ───────────────
+
+/** One name part: first, middle (father's) or family name. */
+const optionalNamePartSchema = z.string().trim().min(2).max(60).optional();
+
+export const adminEditReportSchema = z
+  .object({
+    // Reporter fields
+    firstName: optionalNamePartSchema,
+    middleName: optionalNamePartSchema,
+    lastName: optionalNamePartSchema,
+    phoneNumber: phoneNumberSchema.optional(),
+    // Property fields
+    street: z.string().trim().min(2).max(120).optional(),
+    projectName: z.string().trim().max(120).optional(),
+    floor: z.string().trim().min(1).max(30).optional(),
+    unitArea: z.number().int().positive().optional(),
+    additionalDirections: z.string().trim().max(255).optional(),
+    propertyNumber: z.string().trim().min(1).max(60).optional(),
+    ownerPhoneNumber: phoneNumberSchema.optional(),
+    // Geo
+    latitude: z
+      .number()
+      .min(-90)
+      .max(90)
+      .optional(),
+    longitude: z
+      .number()
+      .min(-180)
+      .max(180)
+      .optional(),
+    // Report fields
+    description: z.string().trim().min(3).max(5000).optional(),
+  })
+  .strict();
+
+export type AdminEditReportDto = z.infer<typeof adminEditReportSchema>;
+
+export const attachmentIdParamSchema = z.string().uuid('Attachment id must be a UUID');

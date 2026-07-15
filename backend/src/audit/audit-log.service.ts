@@ -7,6 +7,7 @@ export type AuditActionType =
   | 'CREATE_STAFF'
   | 'DELETE_STAFF'
   | 'UPDATE_REPORT_STATUS'
+  | 'EDIT_REPORT_DATA'
   | 'EXPORT_DATA';
 
 export interface AuditEntry {
@@ -15,6 +16,8 @@ export interface AuditEntry {
   actionType: AuditActionType;
   targetId: string;
   details: string;
+  /** Arabic counterpart of `details` for dual-language audit rendering. */
+  detailsAr?: string;
   ipAddress?: string;
 }
 
@@ -25,6 +28,7 @@ export interface AuditLogItem {
   actionType: AuditActionType;
   targetId: string;
   details: string;
+  detailsAr: string | null;
   ipAddress: string | null;
   createdAt: string;
 }
@@ -70,6 +74,7 @@ export class AuditLogService {
           actionType: entry.actionType,
           targetId: entry.targetId,
           details: entry.details,
+          detailsAr: entry.detailsAr ?? null,
           ipAddress: entry.ipAddress ?? null,
         },
       });
@@ -119,6 +124,7 @@ export class AuditLogService {
         actionType: row.actionType as AuditActionType,
         targetId: row.targetId,
         details: row.details,
+        detailsAr: row.detailsAr,
         ipAddress: row.ipAddress,
         createdAt: row.createdAt.toISOString(),
       })),

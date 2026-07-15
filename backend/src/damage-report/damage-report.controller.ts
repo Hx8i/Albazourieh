@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -17,14 +18,19 @@ import {
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Role, Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import {
   ZodValidationPipe,
   validateWithSchema,
 } from '../common/pipes/zod-validation.pipe';
 import {
+  AdminEditReportDto,
   ListReportsQueryDto,
   SpatialQueryDto,
   UpdateReportStatusDto,
+  adminEditReportSchema,
+  attachmentIdParamSchema,
   listReportsQuerySchema,
   multipartPayloadSchema,
   referenceCodeParamSchema,
@@ -150,6 +156,43 @@ export class DamageReportController {
     @Req() request: AuthenticatedRequest,
   ): Promise<DamageReportWithRelations> {
     return this.service.updateStatus(id, dto, {
+      id: request.user.sub,
+      name: request.user.fullName,
+      ipAddress: request.ip,
+    });
+  }
+
+  // ─────────────────── Admin data editing ───────────────────
+
+  /** Admin/staff: edit citizen-submitted report data fields. */
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.STAFF_MEMBER)
+  async adminEditReport(
+    @Param('id', new ZodValidationPipe(reportIdParamSchema)) id: string,
+    @Body(new ZodValidationPipe(adminEditReportSchema))
+    dto: AdminEditReportDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<DamageReportWithRelations> {
+    return this.service.adminEditReport(id, dto, {
+      id: request.user.sub,
+      name: request.user.fullName,
+      ipAddress: request.ip,
+    });
+  }
+
+  /** Admin/staff: delete a specific attachment from a report. */
+  @Delete(':id/attachments/:attachmentId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.STAFF_MEMBER)
+  async deleteAttachment(
+    @Param('id', new ZodValidationPipe(reportIdParamSchema)) id: string,
+    @Param('attachmentId', new ZodValidationPipe(attachmentIdParamSchema))
+    attachmentId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    await this.service.deleteReportAttachment(id, attachmentId, {
       id: request.user.sub,
       name: request.user.fullName,
       ipAddress: request.ip,

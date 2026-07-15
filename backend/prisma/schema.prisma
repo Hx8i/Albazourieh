@@ -102,6 +102,8 @@ model Property {
   street               String?          @db.VarChar(120)
   projectName          String?          @db.VarChar(120)
   floor                String?          @db.VarChar(30)
+  /// Unit area in square metres — mandatory for HOUSE/SHOP/APARTMENT.
+  unitArea             Int?
   additionalDirections String?          @db.VarChar(255)
   addressLine          String?          @db.VarChar(255)
   latitude             Float
@@ -130,6 +132,7 @@ model DamageReport {
   status          ReportStatus   @default(PENDING)
   severity        DamageSeverity
   rejectionReason String?
+  rejectedField   String?        @db.VarChar(100)
   reporterId      String         @db.Uuid
   propertyId      String         @db.Uuid
   reviewedById    String?        @db.Uuid
@@ -198,6 +201,8 @@ model AuditLog {
   actionType String   @db.VarChar(40)
   targetId   String   @db.VarChar(60)
   details    String
+  /// Arabic counterpart of `details` for dual-language audit rendering.
+  detailsAr  String?
   ipAddress  String?  @db.VarChar(45)
   createdAt  DateTime @default(now())
 
