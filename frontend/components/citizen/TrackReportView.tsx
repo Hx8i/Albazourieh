@@ -18,6 +18,7 @@ import {
   isValidReferenceCode,
   PublicReportStatus,
   ReportStatus,
+  RejectedField,
 } from '@/lib/schemas/damage-report.schema';
 
 interface TrackReportViewProps {
@@ -290,10 +291,15 @@ function ResultCard({
                   <span className="font-semibold">
                     {locale === 'ar' ? 'الحقل المرفوض: ' : 'Rejected field: '}
                   </span>
-                  {data.rejectedField === 'Name' && (locale === 'ar' ? 'الاسم' : 'Name')}
-                  {data.rejectedField === 'Address' && (locale === 'ar' ? 'العنوان' : 'Address')}
-                  {data.rejectedField === 'Description' && (locale === 'ar' ? 'وصف الضرر' : 'Description')}
-                  {data.rejectedField === 'Media' && (locale === 'ar' ? 'المرفقات والأدلة' : 'Media')}
+                  {(() => {
+                    const mapping: Record<RejectedField, string> = {
+                      Name: dict.detail.rejectedFields.Name,
+                      Address: dict.detail.rejectedFields.Address,
+                      Description: dict.detail.rejectedFields.Description,
+                      Media: dict.detail.rejectedFields.Media,
+                    };
+                    return mapping[data.rejectedField] || data.rejectedField;
+                  })()}
                 </>
               ) : null}
             </p>

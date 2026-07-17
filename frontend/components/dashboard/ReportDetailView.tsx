@@ -18,6 +18,7 @@ import {
   Trash2,
   Save,
   X,
+  Plus,
 } from "lucide-react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ import {
   useUpdateReportStatusMutation,
   useAdminEditReportMutation,
   useDeleteAttachmentMutation,
+  useAddAttachmentMutation,
 } from "@/lib/queries";
 import {
   DamageSeverity,
@@ -49,6 +51,7 @@ import {
   AdminEditPayload,
 } from "@/lib/schemas/damage-report.schema";
 import { LIGHT_MAP_STYLE } from "@/components/map/map-config";
+import { LocationPickerMap } from "@/components/map/LocationPickerMap";
 
 const NEXT_STATUS: Partial<Record<ReportStatus, ReportStatus>> = {
   PENDING: "UNDER_REVIEW",
@@ -154,6 +157,7 @@ export function ReportDetailView({
   const [rejecting, setRejecting] = React.useState(false);
   const [rejectReason, setRejectReason] = React.useState("");
   const [rejectField, setRejectField] = React.useState("");
+  const [ownershipDocLabel, setOwnershipDocLabel] = React.useState<string>(OWNERSHIP_LABELS[0] || "PROPERTY_DEED");
 
   // Edit Mode state
   const [isEditing, setIsEditing] = React.useState(false);
@@ -176,6 +180,7 @@ export function ReportDetailView({
   const updateStatus = useUpdateReportStatusMutation();
   const editReport = useAdminEditReportMutation();
   const deleteAttachment = useDeleteAttachmentMutation();
+  const addAttachment = useAddAttachmentMutation();
 
   // Populate editForm when report data changes or editing mode is turned on
   const nameParts = report?.reporter.fullName.split(" ") ?? [];
@@ -207,6 +212,9 @@ export function ReportDetailView({
     status: ReportStatus,
     reason?: string,
   ): Promise<void> => {
+    if (status === "REJECTED" && (!reason || !rejectField)) {
+      return;
+    }
     setActionError(null);
     try {
       await updateStatus.mutateAsync({
@@ -257,8 +265,19 @@ export function ReportDetailView({
       if (editForm.floor.trim() !== (report.property.floor ?? "")) {
         payload.floor = editForm.floor.trim();
       }
-      if (editForm.unitArea.trim() !== (report.property.unitArea ? String(report.property.unitArea) : "")) {
-        payload.unitArea = editForm.unitArea.trim() ? parseInt(editForm.unitArea.trim(), 10) : undefined;
+      const trimmedUnitArea = editForm.unitArea.trim();
+      if (trimmedUnitArea !== (report.property.unitArea ? String(report.property.unitArea) : "")) {
+        if (trimmedUnitArea === "") {
+          payload.unitArea = undefined;
+        } else {
+          const val = Number(trimmedUnitArea);
+          if (Number.isInteger(val) && val > 0) {
+            payload.unitArea = val;
+          } else {
+            setActionError("Unit area must be a positive integer");
+            return;
+          }
+        }
       }
       if (editForm.propertyNumber.trim() !== (report.property.realEstateNumber ?? "")) {
         payload.propertyNumber = editForm.propertyNumber.trim();
@@ -273,14 +292,26 @@ export function ReportDetailView({
       }
     }
 
-    const parsedLat = parseFloat(editForm.latitude);
-    const parsedLng = parseFloat(editForm.longitude);
+    const trimmedLat = editForm.latitude.trim();
+    const trimmedLng = editForm.longitude.trim();
 
-    if (!isNaN(parsedLat) && parsedLat !== report.property.latitude) {
-      payload.latitude = parsedLat;
+    if (trimmedLat !== "" && trimmedLat !== String(report.property.latitude)) {
+      const parsedLat = Number(trimmedLat);
+      if (Number.isFinite(parsedLat) && parsedLat >= -90 && parsedLat <= 90) {
+        payload.latitude = parsedLat;
+      } else {
+        setActionError("Latitude must be a valid number between -90 and 90");
+        return;
+      }
     }
-    if (!isNaN(parsedLng) && parsedLng !== report.property.longitude) {
-      payload.longitude = parsedLng;
+    if (trimmedLng !== "" && trimmedLng !== String(report.property.longitude)) {
+      const parsedLng = Number(trimmedLng);
+      if (Number.isFinite(parsedLng) && parsedLng >= -180 && parsedLng <= 180) {
+        payload.longitude = parsedLng;
+      } else {
+        setActionError("Longitude must be a valid number between -180 and 180");
+        return;
+      }
     }
 
     try {
@@ -678,10 +709,49 @@ export function ReportDetailView({
         {/* Right pane */}
         <div className="space-y-6">
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <BadgeCheck className="h-5 w-5" /> {t.identitySection}
               </CardTitle>
+              {isEditing ? (
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="upload-identity"
+                    className="hidden"
+                    accept="image/*,application/pdf"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setActionError(null);
+                        try {
+                          await addAttachment.mutateAsync({
+                            reportId,
+                            file,
+                            label: "NATIONAL_ID",
+                          });
+                        } catch (err) {
+                          setActionError(toApiError(err).message);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1 text-xs h-8"
+                    disabled={addAttachment.isPending}
+                    onClick={() => document.getElementById("upload-identity")?.click()}
+                  >
+                    {addAttachment.isPending && addAttachment.variables?.label === "NATIONAL_ID" ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3.5 w-3.5" />
+                    )}
+                    {t.addDocument}
+                  </Button>
+                </div>
+              ) : null}
             </CardHeader>
             <CardContent>
               {groups.identity.length > 0 ? (
@@ -695,10 +765,64 @@ export function ReportDetailView({
           </Card>
 
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 space-y-0">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileText className="h-5 w-5" /> {t.ownershipDocsSection}
               </CardTitle>
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={ownershipDocLabel}
+                    onValueChange={setOwnershipDocLabel}
+                  >
+                    <SelectTrigger className="h-8 w-[160px] text-xs">
+                      <SelectValue placeholder={t.attachmentLabels.PROPERTY_DEED} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OWNERSHIP_LABELS.map((lbl) => (
+                        <SelectItem key={lbl} value={lbl} className="text-xs">
+                          {(t.attachmentLabels as Record<string, string>)[lbl] ?? lbl}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <input
+                    type="file"
+                    id="upload-ownership"
+                    className="hidden"
+                    accept="image/*,application/pdf"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setActionError(null);
+                        try {
+                          await addAttachment.mutateAsync({
+                            reportId,
+                            file,
+                            label: ownershipDocLabel,
+                          });
+                        } catch (err) {
+                          setActionError(toApiError(err).message);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1 text-xs h-8"
+                    disabled={addAttachment.isPending}
+                    onClick={() => document.getElementById("upload-ownership")?.click()}
+                  >
+                    {addAttachment.isPending && addAttachment.variables?.label === ownershipDocLabel ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3.5 w-3.5" />
+                    )}
+                    {t.addDocument}
+                  </Button>
+                </div>
+              ) : null}
             </CardHeader>
             <CardContent>
               {groups.ownership.length > 0 ? (
@@ -712,10 +836,55 @@ export function ReportDetailView({
           </Card>
 
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Camera className="h-5 w-5" /> {t.damageGallerySection}
               </CardTitle>
+              {isEditing ? (
+                <div className="relative">
+                  <input
+                    type="file"
+                    id="upload-damage"
+                    className="hidden"
+                    accept="image/*"
+                    multiple
+                    onChange={async (e) => {
+                      const files = e.target.files;
+                      if (files && files.length > 0) {
+                        setActionError(null);
+                        try {
+                          for (let i = 0; i < files.length; i++) {
+                            const file = files[i];
+                            if (file) {
+                              await addAttachment.mutateAsync({
+                                reportId,
+                                file,
+                                label: "DAMAGE_PHOTO",
+                              });
+                            }
+                          }
+                        } catch (err) {
+                          setActionError(toApiError(err).message);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1 text-xs h-8"
+                    disabled={addAttachment.isPending}
+                    onClick={() => document.getElementById("upload-damage")?.click()}
+                  >
+                    {addAttachment.isPending && addAttachment.variables?.label === "DAMAGE_PHOTO" ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3.5 w-3.5" />
+                    )}
+                    {t.addDocument}
+                  </Button>
+                </div>
+              ) : null}
             </CardHeader>
             <CardContent>
               {groups.damage.length > 0 ? (
@@ -735,24 +904,47 @@ export function ReportDetailView({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="h-64 w-full overflow-hidden rounded-xl border">
-                <Map
-                  initialViewState={{
-                    latitude: mapLat,
-                    longitude: mapLng,
-                    zoom: 15,
-                  }}
-                  mapStyle={LIGHT_MAP_STYLE}
-                  attributionControl={false}
-                  style={{ width: "100%", height: "100%" }}
-                >
-                  <Marker latitude={mapLat} longitude={mapLng} anchor="bottom">
-                    <MapPin className="h-9 w-9 fill-red-500 text-red-700 drop-shadow" />
-                  </Marker>
-                </Map>
-              </div>
               {isEditing ? (
-                <div className="grid grid-cols-2 gap-3">
+                <LocationPickerMap
+                  latitude={parseFloat(editForm.latitude) || null}
+                  longitude={parseFloat(editForm.longitude) || null}
+                  onPick={(latitude, longitude) => {
+                    setEditForm((prev) => ({
+                      ...prev,
+                      latitude: String(latitude),
+                      longitude: String(longitude),
+                    }));
+                  }}
+                  locale={locale}
+                  labels={{
+                    landmarkLabel: dict.wizard.locationLandmarkLabel,
+                    landmarkPlaceholder: dict.wizard.locationLandmarkPlaceholder,
+                    pinHint: dict.wizard.locationPinHint,
+                    basemapStreet: dict.wizard.locationBasemapStreet,
+                    basemapSatellite: dict.wizard.locationBasemapSatellite,
+                    recenter: dict.wizard.locationRecenter,
+                  }}
+                />
+              ) : (
+                <div className="h-64 w-full overflow-hidden rounded-xl border">
+                  <Map
+                    initialViewState={{
+                      latitude: mapLat,
+                      longitude: mapLng,
+                      zoom: 15,
+                    }}
+                    mapStyle={LIGHT_MAP_STYLE}
+                    attributionControl={false}
+                    style={{ width: "100%", height: "100%" }}
+                  >
+                    <Marker latitude={mapLat} longitude={mapLng} anchor="bottom">
+                      <MapPin className="h-9 w-9 fill-red-500 text-red-700 drop-shadow" />
+                    </Marker>
+                  </Map>
+                </div>
+              )}
+              {isEditing ? (
+                <div className="grid grid-cols-2 gap-3 mt-2">
                   <div className="space-y-1">
                     <Label htmlFor="edit-latitude">Latitude *</Label>
                     <Input
@@ -878,8 +1070,12 @@ export function ReportDetailView({
                       <>
                         <Button
                           variant="destructive"
-                          disabled={updateStatus.isPending || rejectReason.trim().length < 5}
-                          onClick={() => void applyStatus("REJECTED", rejectReason.trim())}
+                          disabled={updateStatus.isPending || rejectReason.trim().length < 5 || !rejectField}
+                          onClick={() => {
+                            if (rejectReason.trim().length >= 5 && rejectField) {
+                              void applyStatus("REJECTED", rejectReason.trim());
+                            }
+                          }}
                         >
                           {updateStatus.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

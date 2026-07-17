@@ -55,11 +55,14 @@ const coordinatesSchema = z.object({
 
 // ───────────────────── Update status (municipality) ──────────────────
 
+export const rejectedFieldSchema = z.enum(['Name', 'Address', 'Description', 'Media']);
+export type RejectedField = z.infer<typeof rejectedFieldSchema>;
+
 export const updateReportStatusSchema = z
   .object({
     status: reportStatusSchema,
     rejectionReason: z.string().trim().min(5).max(1000).optional(),
-    rejectedField: z.string().trim().max(100).optional(),
+    rejectedField: rejectedFieldSchema.optional(),
   })
   .strict();
 
@@ -92,7 +95,7 @@ const propertyLocationSchema = z
     street: z.string().trim().min(2).max(120),
     projectName: z.string().trim().max(120).optional(),
     floor: z.string().trim().min(1).max(30),
-    unitArea: z.number().int().positive().optional(),
+    unitArea: z.number().int().positive(),
     additionalDirections: z.string().trim().max(255).optional(),
     district: z.string().trim().max(120).optional(),
   })

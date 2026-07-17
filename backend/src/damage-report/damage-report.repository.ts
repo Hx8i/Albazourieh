@@ -254,6 +254,7 @@ export class DamageReportRepository {
           street: input.property.street,
           projectName: input.property.projectName,
           floor: input.property.floor,
+          unitArea: input.property.unitArea,
           additionalDirections: input.property.additionalDirections,
           addressLine: input.property.addressLine,
           latitude: input.property.latitude,
@@ -488,6 +489,30 @@ export class DamageReportRepository {
   async deleteAttachment(attachmentId: string): Promise<void> {
     await this.prisma.attachment.delete({ where: { id: attachmentId } });
   }
+
+  /** Add a new attachment to a report. */
+  async addAttachment(
+    reportId: string,
+    data: {
+      url: string;
+      type: AttachmentType;
+      label?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+    },
+  ): Promise<Prisma.AttachmentGetPayload<null>> {
+    return this.prisma.attachment.create({
+      data: {
+        reportId,
+        url: data.url,
+        type: data.type,
+        label: data.label,
+        mimeType: data.mimeType,
+        sizeBytes: data.sizeBytes,
+      },
+    });
+  }
+
 
   /**
    * Slim spatial slice for the map dashboard: one indexed query with a

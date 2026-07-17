@@ -27,7 +27,8 @@ import {
   SpatialPoint,
   StatusSummary,
 } from "./damage-report.repository";
-import { ReportStatus } from "../generated/prisma/client";
+import { ReportStatus, AttachmentType } from "../generated/prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * The review lifecycle. A report only ever moves forward (or gets
@@ -464,6 +465,48 @@ export class DamageReportService {
       detailsAr: `حذف المرفق (${attachment.label ?? 'بدون تسمية'})`,
       ipAddress: reviewer.ipAddress,
     });
+  }
+
+  /** Add an attachment to a report (admin override). */
+  async addReportAttachment(
+    reportId: string,
+    file: Express.Multer.File,
+    label: AttachmentLabel,
+    reviewer: ActingReviewer,
+  ): Promise<DamageReportWithRelations> {
+    const report = await this.getReportById(reportId);
+
+    const kind = label === 'DAMAGE_PHOTO' ? 'photo' : 'document';
+    const attachmentType = label === 'DAMAGE_PHOTO' ? AttachmentType.PHOTO : AttachmentType.DOCUMENT;
+
+    const uniqueName = `${randomUUID()}-${file.originalname}`;
+    const url = await this.uploads.uploadEvidence(
+      kind,
+      file.buffer,
+      uniqueName,
+      file.mimetype,
+    );
+
+    await this.repository.addAttachment(reportId, {
+      url,
+      type: attachmentType,
+      label,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    });
+
+    await this.audit.record({
+      adminId: reviewer.id,
+      adminName: reviewer.name,
+      actionType: 'EDIT_REPORT_DATA',
+      targetId: report.referenceCode,
+      details: `Added attachment (${label})`,
+      detailsAr: `أضاف المرفق (${label})`,
+      ipAddress: reviewer.ipAddress,
+    });
+
+    this.cache.invalidatePrefix(CACHE_PREFIX);
+    return this.getReportById(reportId);
   }
 }
 

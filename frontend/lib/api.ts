@@ -410,3 +410,24 @@ export function deleteReportAttachment(
   );
 }
 
+/** Admin edit: add a specific attachment. */
+export function addReportAttachment(
+  reportId: string,
+  file: File,
+  label: string,
+): Promise<ApiResult<ReportListItem>> {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  formData.append('label', label);
+
+  return request<ReportListItem>(
+    `/damage-reports/${reportId}/attachments`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    { staffAuth: true },
+  );
+}
+
+

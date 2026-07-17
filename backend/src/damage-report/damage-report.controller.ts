@@ -11,11 +11,12 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Role, Roles } from '../auth/roles.decorator';
@@ -26,11 +27,13 @@ import {
 } from '../common/pipes/zod-validation.pipe';
 import {
   AdminEditReportDto,
+  AttachmentLabel,
   ListReportsQueryDto,
   SpatialQueryDto,
   UpdateReportStatusDto,
   adminEditReportSchema,
   attachmentIdParamSchema,
+  attachmentLabelSchema,
   listReportsQuerySchema,
   multipartPayloadSchema,
   referenceCodeParamSchema,
@@ -175,6 +178,27 @@ export class DamageReportController {
     @Req() request: AuthenticatedRequest,
   ): Promise<DamageReportWithRelations> {
     return this.service.adminEditReport(id, dto, {
+      id: request.user.sub,
+      name: request.user.fullName,
+      ipAddress: request.ip,
+    });
+  }
+
+  /** Admin/staff: add a specific attachment to a report. */
+  @Post(':id/attachments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.STAFF_MEMBER)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MULTIPART_FILE_LIMIT_BYTES } }))
+  async addAttachment(
+    @Param('id', new ZodValidationPipe(reportIdParamSchema)) id: string,
+    @Body('label', new ZodValidationPipe(attachmentLabelSchema)) label: AttachmentLabel,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<DamageReportWithRelations> {
+    if (!file) {
+      throw new BadRequestException('A file upload is required');
+    }
+    return this.service.addReportAttachment(id, file, label, {
       id: request.user.sub,
       name: request.user.fullName,
       ipAddress: request.ip,

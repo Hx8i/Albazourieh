@@ -27,6 +27,7 @@ import {
   validatePropertyNumber,
   adminEditReport,
   deleteReportAttachment,
+  addReportAttachment,
 } from './api';
 import { unwrap } from './query-client';
 import { MultipartPayload, ReportStatus, AdminEditPayload } from './schemas/damage-report.schema';
@@ -241,8 +242,30 @@ export function useDeleteAttachmentMutation() {
     }) => unwrap(deleteReportAttachment(reportId, attachmentId)),
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.reports.detail(variables.reportId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
     },
   });
 }
+
+export function useAddAttachmentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      reportId,
+      file,
+      label,
+    }: {
+      reportId: string;
+      file: File;
+      label: string;
+    }) => unwrap(addReportAttachment(reportId, file, label)),
+    onSuccess: (updated, variables) => {
+      queryClient.setQueryData(queryKeys.reports.detail(variables.reportId), updated);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
 

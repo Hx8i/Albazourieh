@@ -109,7 +109,7 @@
     "ownerPhoneLabel": "رقم هاتف مالك العقار",
     "chooseFile": "اختيار ملف",
     "propertyNumberLabel": "رقم العقار الرسمي",
-    "unitAreaLabel": "مساحة الوحدة السكنية (بالمتر المربع)",
+    "unitAreaLabel": "مساحة الوحدة (بالمتر المربع)",
     "propertyNumberChecking": "جارٍ التحقق من رقم العقار…",
     "propertyNumberTaken": "رقم العقار هذا مقدَّم مسبقاً وهو قيد التقييم.",
     "propertyNumberOk": "رقم العقار متاح ✓",
@@ -136,7 +136,7 @@
       "locationRequired": "يرجى تحديد موقعك أو وضع الدبوس على الخريطة أولاً",
       "assetRequired": "يرجى اختيار ما الذي تضرّر",
       "severityRequired": "يرجى اختيار حجم الضرر",
-      "nationalIdRequired": "يرجى إرفاق صورة بطاقة الهوية",
+      "nationalIdRequired": "يرجى إرفاق صورة مستند تعريفي",
       "residencyProofRequired": "يرجى إرفاق إثبات السكن",
       "ownershipRequired": "يرجى اختيار مالك أو مستأجر",
       "rentalContractRequired": "على المستأجر إرفاق عقد الإيجار",
@@ -381,6 +381,7 @@
     "editSuccess": "تم حفظ التعديلات بنجاح.",
     "unitArea": "مساحة الوحدة السكنية (م²)",
     "deleteAttachment": "حذف المرفق",
+    "addDocument": "إضافة مستند",
     "confirmDeleteAttachment": "هل أنت متأكد من حذف هذا المرفق؟ لا يمكن التراجع."
   },
   "trackReport": {

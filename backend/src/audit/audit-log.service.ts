@@ -96,6 +96,7 @@ export class AuditLogService {
             { actionType: { contains: filter.search, mode: 'insensitive' } },
             { targetId: { contains: filter.search, mode: 'insensitive' } },
             { details: { contains: filter.search, mode: 'insensitive' } },
+            { detailsAr: { contains: filter.search, mode: 'insensitive' } },
           ],
         }
       : {};
