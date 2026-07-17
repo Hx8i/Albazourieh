@@ -39,7 +39,7 @@ import { DamageMapPanel } from "./DamageMapPanel";
 import { RejectReasonDialog } from "./RejectReasonDialog";
 
 const ALL = "ALL";
-const CELL_PADDING = "py-3";
+const CELL_PADDING = "py-3.5 align-middle";
 
 const STATUS_OPTIONS: readonly ReportStatus[] = [
   "PENDING",
@@ -344,7 +344,7 @@ export function MunicipalityDashboard({
         meta: { headerClassName: "w-[110px]", cellClassName: CELL_PADDING },
         cell: ({ row }) => (
           <span
-            className="rounded bg-muted px-2 py-1 font-mono text-xs font-semibold tracking-wider"
+            className="inline-block rounded bg-muted px-2 py-1 font-mono text-xs font-semibold tracking-wider"
             dir="ltr"
           >
             {row.original.referenceCode}
@@ -357,11 +357,17 @@ export function MunicipalityDashboard({
         header: t.table.reporter,
         meta: { headerClassName: "min-w-[180px]", cellClassName: CELL_PADDING },
         cell: ({ row }) => (
-          <div>
-            <p className="max-w-[220px] truncate font-medium leading-tight">
+          <div className="space-y-0.5">
+            <p
+              className="max-w-[220px] truncate font-medium leading-tight"
+              dir="auto"
+            >
               {row.original.reporter.fullName}
             </p>
-            <p className="text-xs tabular-nums text-muted-foreground" dir="ltr">
+            <p
+              className="inline-block text-xs tabular-nums text-muted-foreground"
+              dir="ltr"
+            >
               {row.original.reporter.phoneNumber}
             </p>
           </div>
@@ -374,11 +380,11 @@ export function MunicipalityDashboard({
         enableSorting: false,
         meta: { headerClassName: "w-[110px]", cellClassName: CELL_PADDING },
         cell: ({ row }) => (
-          <div>
-            <p>{t.asset[row.original.property.type]}</p>
+          <div className="space-y-0.5">
+            <p dir="auto">{t.asset[row.original.property.type]}</p>
             {row.original.property.realEstateNumber ? (
               <p
-                className="text-xs tabular-nums text-muted-foreground"
+                className="inline-block text-xs tabular-nums text-muted-foreground"
                 dir="ltr"
               >
                 #{row.original.property.realEstateNumber}
@@ -393,7 +399,7 @@ export function MunicipalityDashboard({
         header: t.table.neighborhood,
         meta: { headerClassName: "min-w-[130px]", cellClassName: CELL_PADDING },
         cell: ({ row }) => (
-          <span className="block max-w-[180px] truncate">
+          <span className="block max-w-[180px] truncate" dir="auto">
             {row.original.property.neighborhood}
           </span>
         ),

@@ -101,6 +101,7 @@ export function AuditTrailPanel({
         accessorFn: (row) => row.adminName,
         header: t.colAdmin,
         meta: { cellClassName: 'font-medium' },
+        cell: ({ row }) => <span dir="auto">{row.original.adminName}</span>,
       },
       {
         id: 'actionType',
@@ -123,7 +124,9 @@ export function AuditTrailPanel({
         enableSorting: false,
         meta: { cellClassName: 'font-mono text-xs' },
         cell: ({ row }) => (
-          <span dir="ltr">{targetLabel(row.original)}</span>
+          <span className="inline-block" dir="ltr">
+            {targetLabel(row.original)}
+          </span>
         ),
       },
       {
@@ -132,7 +135,7 @@ export function AuditTrailPanel({
         enableSorting: false,
         meta: { cellClassName: 'max-w-[280px] text-sm text-muted-foreground' },
         cell: ({ row }) => (
-          <span dir="ltr" className="block truncate" title={row.original.details}>
+          <span dir="auto" className="block truncate" title={row.original.details}>
             {row.original.details}
           </span>
         ),
