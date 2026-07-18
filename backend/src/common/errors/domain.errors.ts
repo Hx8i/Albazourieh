@@ -19,6 +19,7 @@ export type DomainErrorCode =
   | 'INVALID_FILE'
   | 'PROPERTY_NUMBER_TAKEN'
   | 'MISSING_REQUIRED_FILE'
+  | 'DISPLACED_NOT_FOUND'
   | 'STAFF_NOT_FOUND'
   | 'STAFF_EMAIL_TAKEN'
   | 'PROTECTED_STAFF_ACCOUNT';
@@ -136,6 +137,17 @@ export class MissingRequiredFileError extends DomainError {
     super({
       en: `The required file "${field}" is missing from the submission`,
       ar: `المستند المطلوب "${field}" غير مرفق بالطلب`,
+    });
+  }
+}
+
+export class DisplacedRegistrationNotFoundError extends DomainError {
+  readonly code = 'DISPLACED_NOT_FOUND';
+
+  constructor(id: string) {
+    super({
+      en: `Displaced registration "${id}" was not found`,
+      ar: `لم يتم العثور على التسجيل "${id}"`,
     });
   }
 }

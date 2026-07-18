@@ -7,8 +7,10 @@ export type AuditActionType =
   | 'CREATE_STAFF'
   | 'DELETE_STAFF'
   | 'UPDATE_REPORT_STATUS'
+  | 'UPDATE_DISPLACED_STATUS'
   | 'EDIT_REPORT_DATA'
-  | 'EXPORT_DATA';
+  | 'EXPORT_DATA'
+  | 'UPDATE_DISPLACED_REGISTRATION';
 
 export interface AuditEntry {
   adminId: string;

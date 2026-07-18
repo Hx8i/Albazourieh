@@ -16,7 +16,15 @@
     "title": "Post-War Damage Assessment",
     "subtitle": "Report damage to your home, land, vehicle or shop — step by step, in a few minutes.",
     "switchLanguage": "العربية",
-    "trackExisting": "Track an existing report"
+    "trackExisting": "Track an existing report",
+    "displacedHeading": "Displacement registration",
+    "displacedHint": "Are you a displaced household? Register to request municipal assistance."
+  },
+  "modules": {
+    "title": "Platform sections",
+    "warDamages": "War Damages",
+    "syrian": "Syrian Displaced",
+    "lebanese": "Lebanese Displaced"
   },
   "login": {
     "title": "Staff sign in",
@@ -308,6 +316,7 @@
       "CREATE_STAFF": "Created staff account",
       "DELETE_STAFF": "Revoked staff account",
       "UPDATE_REPORT_STATUS": "Changed report status",
+      "UPDATE_DISPLACED_STATUS": "Changed displaced status",
       "EDIT_REPORT_DATA": "Edited report data",
       "EXPORT_DATA": "Exported data"
     },
@@ -376,6 +385,185 @@
     "deleteAttachment": "Delete Attachment",
     "addDocument": "Add Document",
     "confirmDeleteAttachment": "Are you sure you want to delete this attachment? This action cannot be undone."
+  },
+  "displaced": {
+    "syrian": {
+      "formTitle": "Syrian Displaced Registration",
+      "formSubtitle": "Register a displaced Syrian household to request municipal assistance.",
+      "dashboardTitle": "Syrian Displaced Dashboard",
+      "dashboardSubtitle": "Registered Syrian displaced households — Al Bazourieh",
+      "originLabel": "City of origin in Syria",
+      "originPlaceholder": "Example: Aleppo",
+      "dateLabel": "Date of entry into Lebanon"
+    },
+    "lebanese": {
+      "formTitle": "Lebanese Displaced Registration",
+      "formSubtitle": "Register a displaced Lebanese household to request municipal assistance.",
+      "dashboardTitle": "Lebanese Displaced Dashboard",
+      "dashboardSubtitle": "Registered Lebanese displaced households — Al Bazourieh",
+      "originLabel": "Village of origin in Lebanon",
+      "originPlaceholder": "Example: Aita al-Shaab",
+      "dateLabel": "Date of displacement"
+    },
+    "form": {
+      "identitySection": "Identity & contact",
+      "fullNameLabel": "Full name",
+      "phoneLabel": "Phone number",
+      "phonePlaceholder": "03 123 456",
+      "idLabel": "Identity document (ID card, passport, or residency paper)",
+      "idHint": "photo or PDF",
+      "householdSection": "Household & location",
+      "familyMembersLabel": "Number of family members",
+      "familyMembersNamesLabel": "Names of all family members",
+      "familyMembersNamesPlaceholder": "List the full name of each family member...",
+      "registrationNumberLabel": "UNHCR / registration number",
+      "registrationNumberHint": "Leave empty if not registered",
+      "shelterTypeLabel": "Current housing type",
+      "shelterTypePlaceholder": "Choose the housing type…",
+      "propertyDamagedLabel": "Was the household's property damaged?",
+      "incomeLabel": "Primary source of income",
+      "incomePlaceholder": "Example: daily labor, agriculture…",
+      "needsSection": "Urgent needs",
+      "needsHint": "Select everything the household urgently needs.",
+      "submit": "Submit registration",
+      "submitting": "Submitting…",
+      "successTitle": "Registration received!",
+      "successBody": "The municipality will review the registration. Keep your phone available.",
+      "successToast": "Registration submitted successfully",
+      "registerAnother": "Register another household",
+      "errorTitle": "The registration could not be sent",
+      "errors": {
+        "fullNameRequired": "Please enter the full name (at least 3 characters)",
+        "invalidPhone": "Please enter a valid phone number",
+        "familyMembersRequired": "Please enter the number of family members (1–50)",
+        "familyMembersNamesRequired": "Please list the names of all family members",
+        "originRequired": "Please enter the place of origin",
+        "shelterTypeRequired": "Please choose the housing type",
+        "dateRequired": "Please choose a valid date (not in the future)",
+        "idRequired": "Please attach a photo of an identifying document",
+        "fileTooLarge": "This file is too large. Please attach a file smaller than 4MB."
+      }
+    },
+    "needs": {
+      "FOOD": "Food",
+      "MEDICAL": "Medical",
+      "SHELTER": "Shelter",
+      "CASH": "Cash"
+    },
+    "shelterTypes": {
+      "RENTED_APARTMENT": "Rented apartment",
+      "HOSTED_WITH_FAMILY": "Hosted with family",
+      "COLLECTIVE_SHELTER": "Collective shelter",
+      "TENT_OR_CAMP": "Tent / camp",
+      "OTHER": "Other"
+    },
+    "governorates": {
+      "BEIRUT": "Beirut",
+      "MOUNT_LEBANON": "Mount Lebanon",
+      "NORTH": "North",
+      "AKKAR": "Akkar",
+      "BEKAA": "Bekaa",
+      "BAALBEK_HERMEL": "Baalbek-Hermel",
+      "SOUTH": "South",
+      "NABATIEH": "Nabatieh"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "dashboard": {
+      "refresh": "Refresh",
+      "counters": {
+        "total": "Total registered",
+        "familyMembers": "Total family members",
+        "urgent": "Urgent cases",
+        "pending": "Pending reviews"
+      },
+      "charts": {
+        "needsTitle": "Needs distribution",
+        "needsSubtitle": "How many households selected each urgent need",
+        "locationTitle": "Location breakdown",
+        "locationSubtitle": "Registered households per governorate",
+        "empty": "No data to chart yet.",
+        "households": "{count} household(s)"
+      },
+      "filters": {
+        "title": "Filters",
+        "status": "Status",
+        "governorate": "Governorate",
+        "all": "All",
+        "clear": "Clear filters"
+      },
+      "search": {
+        "label": "Search registrations",
+        "placeholder": "Search by name or phone…",
+        "clear": "Clear search"
+      },
+      "table": {
+        "title": "Registrations",
+        "name": "Registrant",
+        "family": "Family",
+        "membersShort": "{count} member(s)",
+        "governorate": "Governorate",
+        "origin": "Origin",
+        "shelter": "Housing",
+        "registrationNumber": "Reg. №",
+        "unregistered": "Unregistered",
+        "propertyDamaged": "Property damaged",
+        "propertyIntact": "No property damage",
+        "income": "Income",
+        "idDocument": "ID",
+        "viewId": "View ID",
+        "noId": "No ID",
+        "needs": "Urgent needs",
+        "noNeeds": "None",
+        "status": "Status",
+        "date": "Registered",
+        "actions": "Actions",
+        "edit": "Edit",
+        "approve": "Approve",
+        "reject": "Reject",
+        "backToPending": "Back to pending",
+        "empty": "No registrations match the current filters.",
+        "emptySearch": "No registrations match your search.",
+        "loadError": "Could not load registrations.",
+        "sortAscending": "Sort ascending",
+        "sortDescending": "Sort descending",
+        "sortNone": "Clear sort"
+      },
+      "pagination": {
+        "pageOf": "Page {current} of {total}",
+        "previous": "Previous",
+        "next": "Next",
+        "totalRows": "{count} registration(s)",
+        "rowsPerPage": "Rows per page"
+      },
+      "editDialog": {
+        "title": "Edit Registration Details",
+        "save": "Save Changes",
+        "cancel": "Cancel",
+        "viewId": "View Identity Document",
+        "statusLabel": "Triage Status",
+        "fullNameLabel": "Full Name",
+        "phoneLabel": "Phone Number",
+        "familyMembersLabel": "Family Members Count",
+        "familyMembersNamesLabel": "Names of Family Members",
+        "originLabel": "Place of Origin",
+        "registrationNumberLabel": "UNHCR Registration Number",
+        "shelterTypeLabel": "Housing/Shelter Type",
+        "isPropertyDamagedLabel": "Property Damaged?",
+        "incomeLabel": "Primary Source of Income",
+        "entryDateLabel": "Date Entered Lebanon",
+        "displacementDateLabel": "Displacement Date",
+        "success": "Registration updated successfully",
+        "error": "Failed to update registration",
+        "deleteId": "Delete Document",
+        "uploadId": "Upload Document",
+        "uploading": "Uploading...",
+        "confirmDeleteId": "Are you sure you want to delete this document?"
+      }
+    }
   },
   "trackReport": {
     "title": "Track your report",

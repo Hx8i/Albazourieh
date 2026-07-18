@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { ShieldAlert } from 'lucide-react';
+import { ModuleSwitcher } from '@/components/ModuleSwitcher';
 import { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 import { AuditTrailPanel } from './AuditTrailPanel';
 import { MunicipalityDashboard } from './MunicipalityDashboard';
@@ -59,6 +60,7 @@ export function DashboardShell({
 
         return (
           <div className="space-y-6">
+            <ModuleSwitcher dict={dict} locale={locale} active="warDamages" />
             <PortalNav
               dict={dict}
               locale={locale}

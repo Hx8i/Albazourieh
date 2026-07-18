@@ -10,6 +10,16 @@ import {
   StatusSummary,
   AdminEditPayload,
 } from './schemas/damage-report.schema';
+import {
+  CreateLebaneseDisplacedPayload,
+  CreateSyrianDisplacedPayload,
+  DisplacedAudience,
+  DisplacedStatus,
+  DisplacedSummary,
+  LebaneseDisplacedItem,
+  PaginatedDisplaced,
+  SyrianDisplacedItem,
+} from './schemas/displaced.schema';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -270,6 +280,163 @@ export function updateReportStatus(
   );
 }
 
+// ─────────────── Displaced persons (Syrian / Lebanese) ────────────────
+
+/** JSON payload + the registrant's identity document in one FormData body. */
+function displacedFormData(payload: unknown, idDocument: File): FormData {
+  const formData = new FormData();
+  formData.append('payload', JSON.stringify(payload));
+  formData.append('idDocument', idDocument, idDocument.name);
+  return formData;
+}
+
+/** Public intake: register a Syrian displaced household. */
+export function submitSyrianDisplaced(
+  payload: CreateSyrianDisplacedPayload,
+  idDocument: File,
+): Promise<ApiResult<SyrianDisplacedItem>> {
+  return request<SyrianDisplacedItem>('/displaced/syrian', {
+    method: 'POST',
+    body: displacedFormData(payload, idDocument),
+  });
+}
+
+/** Public intake: register a Lebanese displaced household. */
+export function submitLebaneseDisplaced(
+  payload: CreateLebaneseDisplacedPayload,
+  idDocument: File,
+): Promise<ApiResult<LebaneseDisplacedItem>> {
+  return request<LebaneseDisplacedItem>('/displaced/lebanese', {
+    method: 'POST',
+    body: displacedFormData(payload, idDocument),
+  });
+}
+
+export type DisplacedSortField =
+  | 'createdAt'
+  | 'fullName'
+  | 'familyMembersCount'
+  | 'status';
+
+export interface ListDisplacedParams {
+  status?: DisplacedStatus;
+  /** Single-input search: registrant name or phone number. */
+  search?: string;
+  sortBy?: DisplacedSortField;
+  sortDir?: SortDirection;
+  page?: number;
+  pageSize?: number;
+}
+
+function displacedListQuery(params: ListDisplacedParams): string {
+  const search = new URLSearchParams();
+  if (params.status) search.set('status', params.status);
+  if (params.search) search.set('search', params.search);
+  if (params.sortBy) search.set('sortBy', params.sortBy);
+  if (params.sortDir) search.set('sortDir', params.sortDir);
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize));
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
+export function listSyrianDisplaced(
+  params: ListDisplacedParams = {},
+): Promise<ApiResult<PaginatedDisplaced<SyrianDisplacedItem>>> {
+  return request<PaginatedDisplaced<SyrianDisplacedItem>>(
+    `/displaced/syrian${displacedListQuery(params)}`,
+    undefined,
+    { staffAuth: true },
+  );
+}
+
+export function listLebaneseDisplaced(
+  params: ListDisplacedParams = {},
+): Promise<ApiResult<PaginatedDisplaced<LebaneseDisplacedItem>>> {
+  return request<PaginatedDisplaced<LebaneseDisplacedItem>>(
+    `/displaced/lebanese${displacedListQuery(params)}`,
+    undefined,
+    { staffAuth: true },
+  );
+}
+
+/** Metric cards + chart aggregates for one audience's dashboard. */
+export function getDisplacedSummary(
+  audience: DisplacedAudience,
+): Promise<ApiResult<DisplacedSummary>> {
+  return request<DisplacedSummary>(`/displaced/${audience}/summary`, undefined, {
+    staffAuth: true,
+  });
+}
+
+/** Staff triage: move a registration between PENDING/APPROVED/REJECTED. */
+export function updateDisplacedStatus(
+  audience: DisplacedAudience,
+  id: string,
+  status: DisplacedStatus,
+): Promise<ApiResult<SyrianDisplacedItem | LebaneseDisplacedItem>> {
+  return request<SyrianDisplacedItem | LebaneseDisplacedItem>(
+    `/displaced/${audience}/${id}/status`,
+    { method: 'PATCH', body: JSON.stringify({ status }) },
+    { staffAuth: true },
+  );
+}
+
+/** Update a displaced registration (Syrian). */
+export function updateSyrianDisplaced(
+  id: string,
+  payload: Partial<CreateSyrianDisplacedPayload> & { status?: DisplacedStatus },
+): Promise<ApiResult<SyrianDisplacedItem>> {
+  return request<SyrianDisplacedItem>(
+    `/displaced/syrian/${id}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    { staffAuth: true },
+  );
+}
+
+/** Update a displaced registration (Lebanese). */
+export function updateLebaneseDisplaced(
+  id: string,
+  payload: Partial<CreateLebaneseDisplacedPayload> & { status?: DisplacedStatus },
+): Promise<ApiResult<LebaneseDisplacedItem>> {
+  return request<LebaneseDisplacedItem>(
+    `/displaced/lebanese/${id}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    { staffAuth: true },
+  );
+}
+
+/** Upload a displaced registration's ID document. */
+export function uploadDisplacedIdDocument(
+  audience: DisplacedAudience,
+  id: string,
+  file: File,
+): Promise<ApiResult<{ url: string }>> {
+  const formData = new FormData();
+  formData.append('idDocument', file);
+
+  return request<{ url: string }>(
+    `/displaced/${audience}/${id}/id-document`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    { staffAuth: true },
+  );
+}
+
+/** Delete a displaced registration's ID document. */
+export function deleteDisplacedIdDocument(
+  audience: DisplacedAudience,
+  id: string,
+): Promise<ApiResult<void>> {
+  return request<void>(
+    `/displaced/${audience}/${id}/id-document`,
+    { method: 'DELETE' },
+    { staffAuth: true },
+  );
+}
+
 // ─────────────────── Staff administration (SUPER_ADMIN) ───────────────
 
 export type StaffRole = 'SUPER_ADMIN' | 'STAFF_MEMBER';
@@ -322,6 +489,7 @@ export type AuditActionType =
   | 'CREATE_STAFF'
   | 'DELETE_STAFF'
   | 'UPDATE_REPORT_STATUS'
+  | 'UPDATE_DISPLACED_STATUS'
   | 'EDIT_REPORT_DATA'
   | 'EXPORT_DATA';
 

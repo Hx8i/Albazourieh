@@ -6,14 +6,20 @@ import { locales } from './lib/i18n/dictionaries';
  *   defaulting to Arabic unless the browser explicitly prefers English.
  * - Route isolation: the municipality portal lives on a hidden path
  *   (lib/constants.ts). The predictable "/dashboard" path is sealed with
- *   a hard 404 — not a 401 — so probing it reveals nothing.
+ *   a hard 404 — not a 401 — so probing it reveals nothing. Only the
+ *   *first* (non-locale) segment is sealed: the displaced dashboards
+ *   (/syrian/dashboard, /lebanese/dashboard) are intentionally public
+ *   routes behind their own JWT login gate.
  */
 
 const SEALED_SEGMENTS = ['dashboard', 'admin', 'municipality'];
 
 function isSealedPath(pathname: string): boolean {
   const segments = pathname.toLowerCase().split('/').filter(Boolean);
-  return segments.some((segment) => SEALED_SEGMENTS.includes(segment));
+  const first = (locales as readonly string[]).includes(segments[0] ?? '')
+    ? segments[1]
+    : segments[0];
+  return first !== undefined && SEALED_SEGMENTS.includes(first);
 }
 
 export function proxy(request: NextRequest): NextResponse {

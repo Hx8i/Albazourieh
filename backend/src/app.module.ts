@@ -6,6 +6,7 @@ import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { DamageReportModule } from './damage-report/damage-report.module';
+import { DisplacedModule } from './displaced/displaced.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UploadsModule } from './uploads/uploads.module';
@@ -23,6 +24,7 @@ import { UploadsModule } from './uploads/uploads.module';
     HealthModule,
     UploadsModule,
     DamageReportModule,
+    DisplacedModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

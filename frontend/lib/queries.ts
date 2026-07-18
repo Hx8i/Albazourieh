@@ -9,20 +9,31 @@ import {
 import {
   CreateStaffInput,
   ListAuditLogsParams,
+  ListDisplacedParams,
   ListReportsParams,
   MultipartFilesInput,
   SpatialParams,
   createStaff,
+  getDisplacedSummary,
   getReportById,
   getReportsSummary,
   getSpatialData,
   listAuditLogs,
   listDamageReports,
+  listLebaneseDisplaced,
   listStaff,
+  listSyrianDisplaced,
   logExportEvent,
   removeStaff,
   staffLogin,
   submitDamageReportMultipart,
+  submitLebaneseDisplaced,
+  submitSyrianDisplaced,
+  updateDisplacedStatus,
+  updateSyrianDisplaced,
+  updateLebaneseDisplaced,
+  uploadDisplacedIdDocument,
+  deleteDisplacedIdDocument,
   updateReportStatus,
   validatePropertyNumber,
   adminEditReport,
@@ -31,6 +42,14 @@ import {
 } from './api';
 import { unwrap } from './query-client';
 import { MultipartPayload, ReportStatus, AdminEditPayload } from './schemas/damage-report.schema';
+import {
+  CreateLebaneseDisplacedPayload,
+  CreateSyrianDisplacedPayload,
+  DisplacedAudience,
+  DisplacedItem,
+  DisplacedStatus,
+  PaginatedDisplaced,
+} from './schemas/displaced.schema';
 
 /**
  * Hierarchical query keys. Invalidating a parent key (e.g. `reports.all`)
@@ -56,6 +75,17 @@ export const queryKeys = {
   properties: {
     availability: (number: string) =>
       ['properties', 'availability', number] as const,
+  },
+  /**
+   * Displaced-persons keys are namespaced per audience, so invalidating
+   * one programme's caches can never touch the other's.
+   */
+  displaced: {
+    all: (audience: DisplacedAudience) => ['displaced', audience] as const,
+    list: (audience: DisplacedAudience, params: ListDisplacedParams) =>
+      ['displaced', audience, 'list', params] as const,
+    summary: (audience: DisplacedAudience) =>
+      ['displaced', audience, 'summary'] as const,
   },
 } as const;
 
@@ -129,6 +159,70 @@ export function useLogExportMutation() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
     },
+  });
+}
+
+// ────────────── Displaced persons (Syrian / Lebanese) ─────────────────
+
+export function useDisplacedListQuery(
+  audience: DisplacedAudience,
+  params: ListDisplacedParams,
+) {
+  return useQuery({
+    queryKey: queryKeys.displaced.list(audience, params),
+    queryFn: async (): Promise<PaginatedDisplaced<DisplacedItem>> =>
+      audience === 'syrian'
+        ? unwrap(listSyrianDisplaced(params))
+        : unwrap(listLebaneseDisplaced(params)),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDisplacedSummaryQuery(audience: DisplacedAudience) {
+  return useQuery({
+    queryKey: queryKeys.displaced.summary(audience),
+    queryFn: () => unwrap(getDisplacedSummary(audience)),
+    staleTime: AGGREGATE_STALE_TIME_MS,
+  });
+}
+
+/** Staff triage: move a registration between PENDING/APPROVED/REJECTED. */
+export function useUpdateDisplacedStatusMutation(audience: DisplacedAudience) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: DisplacedStatus }) =>
+      unwrap(updateDisplacedStatus(audience, id, status)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.displaced.all(audience),
+      });
+    },
+  });
+}
+
+/** Public intake submission (Syrian form). */
+export function useSubmitSyrianDisplacedMutation() {
+  return useMutation({
+    mutationFn: ({
+      payload,
+      idDocument,
+    }: {
+      payload: CreateSyrianDisplacedPayload;
+      idDocument: File;
+    }) => unwrap(submitSyrianDisplaced(payload, idDocument)),
+  });
+}
+
+/** Public intake submission (Lebanese form). */
+export function useSubmitLebaneseDisplacedMutation() {
+  return useMutation({
+    mutationFn: ({
+      payload,
+      idDocument,
+    }: {
+      payload: CreateLebaneseDisplacedPayload;
+      idDocument: File;
+    }) => unwrap(submitLebaneseDisplaced(payload, idDocument)),
   });
 }
 
@@ -263,6 +357,71 @@ export function useAddAttachmentMutation() {
     onSuccess: (updated, variables) => {
       queryClient.setQueryData(queryKeys.reports.detail(variables.reportId), updated);
       void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
+export function useUpdateSyrianDisplacedMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Partial<CreateSyrianDisplacedPayload> & { status?: DisplacedStatus };
+    }) => unwrap(updateSyrianDisplaced(id, payload)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.displaced.all('syrian'),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
+export function useUpdateLebaneseDisplacedMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Partial<CreateLebaneseDisplacedPayload> & { status?: DisplacedStatus };
+    }) => unwrap(updateLebaneseDisplaced(id, payload)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.displaced.all('lebanese'),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
+export function useUploadDisplacedIdDocumentMutation(audience: DisplacedAudience) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) =>
+      unwrap(uploadDisplacedIdDocument(audience, id, file)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.displaced.all(audience),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
+export function useDeleteDisplacedIdDocumentMutation(audience: DisplacedAudience) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unwrap(deleteDisplacedIdDocument(audience, id)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.displaced.all(audience),
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
     },
   });
