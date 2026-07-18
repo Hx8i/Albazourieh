@@ -18,6 +18,7 @@ import {
   DisplacedItem,
   DisplacedStatus,
   LebaneseDisplacedItem,
+  MAX_ID_DOCUMENTS_PER_REGISTRATION,
   SyrianDisplacedItem,
   SHELTER_TYPES,
   ShelterType,
@@ -25,10 +26,10 @@ import {
 import {
   useUpdateLebaneseDisplacedMutation,
   useUpdateSyrianDisplacedMutation,
-  useUploadDisplacedIdDocumentMutation,
+  useUploadDisplacedIdDocumentsMutation,
   useDeleteDisplacedIdDocumentMutation,
 } from '@/lib/queries';
-import { Dictionary } from '@/lib/i18n/dictionaries';
+import { Dictionary, fill } from '@/lib/i18n/dictionaries';
 
 interface DisplacedEditDialogProps {
   open: boolean;
@@ -50,8 +51,9 @@ export function DisplacedEditDialog({
 
   const updateSyrian = useUpdateSyrianDisplacedMutation();
   const updateLebanese = useUpdateLebaneseDisplacedMutation();
-  const uploadIdMutation = useUploadDisplacedIdDocumentMutation(audience);
+  const uploadIdMutation = useUploadDisplacedIdDocumentsMutation(audience);
   const deleteIdMutation = useDeleteDisplacedIdDocumentMutation(audience);
+  const addDocumentInputRef = React.useRef<HTMLInputElement>(null);
 
   const isPending =
     updateSyrian.isPending ||
@@ -67,7 +69,7 @@ export function DisplacedEditDialog({
   const [familyMembersCount, setFamilyMembersCount] = React.useState('');
   const [familyMembersNames, setFamilyMembersNames] = React.useState('');
   const [status, setStatus] = React.useState<DisplacedStatus>('PENDING');
-  const [idDocumentUrl, setIdDocumentUrl] = React.useState<string | null>(null);
+  const [idDocumentUrls, setIdDocumentUrls] = React.useState<string[]>([]);
 
   // Syrian specific
   const [originalCity, setOriginalCity] = React.useState('');
@@ -90,7 +92,7 @@ export function DisplacedEditDialog({
       setFamilyMembersCount(String(item.familyMembersCount));
       setFamilyMembersNames(item.familyMembersNames);
       setStatus(item.status);
-      setIdDocumentUrl(item.idDocumentUrl ?? null);
+      setIdDocumentUrls(item.idDocumentUrls);
 
       if (audience === 'syrian') {
         const syrian = item as SyrianDisplacedItem;
@@ -125,26 +127,27 @@ export function DisplacedEditDialog({
 
   if (!open || !item) return null;
 
-  const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleUploadFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (files.length === 0) return;
     setError(null);
 
     try {
-      const res = await uploadIdMutation.mutateAsync({ id: item.id, file });
-      setIdDocumentUrl(res.url);
+      const res = await uploadIdMutation.mutateAsync({ id: item.id, files });
+      setIdDocumentUrls(res.idDocumentUrls);
     } catch (err: any) {
       setError(err?.message || tEdit.error);
     }
   };
 
-  const handleDeleteFile = async () => {
+  const handleDeleteFile = async (url: string) => {
     if (!window.confirm(tEdit.confirmDeleteId)) return;
     setError(null);
 
     try {
-      await deleteIdMutation.mutateAsync(item.id);
-      setIdDocumentUrl(null);
+      const res = await deleteIdMutation.mutateAsync({ id: item.id, url });
+      setIdDocumentUrls(res.idDocumentUrls);
     } catch (err: any) {
       setError(err?.message || tEdit.error);
     }
@@ -416,89 +419,77 @@ export function DisplacedEditDialog({
             </>
           )}
 
-          {/* ID Document Visual Card */}
-          {idDocumentUrl ? (
-            <div className="rounded-lg border bg-muted/40 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-md text-primary">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t.dashboard.table.idDocument}</p>
-                  <p className="text-xs text-muted-foreground">Uploaded proof document</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  asChild
-                >
-                  <a
-                    href={idDocumentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+          {/*
+            ID documents: a list, one row per document, each with only
+            two buttons (View, Delete) — that cap keeps every row inside
+            the dialog's width no matter how many documents exist. Adding
+            new ones is a single control below the list, decoupled from
+            any individual row so it never grows a row past two buttons.
+          */}
+          <div className="space-y-2">
+            <Label>{tEdit.idDocumentsLabel}</Label>
+            {idDocumentUrls.length > 0 ? (
+              <ul className="space-y-2">
+                {idDocumentUrls.map((url, index) => (
+                  <li
+                    key={url}
+                    className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3"
                   >
-                    {t.dashboard.table.viewId}
-                  </a>
-                </Button>
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="hidden"
-                  id="replace-id-document-file"
-                  onChange={handleUploadFile}
-                  disabled={isPending}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  disabled={isPending}
-                >
-                  <label htmlFor="replace-id-document-file" className="cursor-pointer">
-                    <Upload className="h-3.5 w-3.5 mr-1" />
-                    {uploadIdMutation.isPending ? tEdit.uploading : tEdit.uploadId}
-                  </label>
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDeleteFile}
-                  disabled={isPending}
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" />
-                  {tEdit.deleteId}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed p-4 flex flex-col items-center justify-center gap-2 bg-muted/20">
-              <Upload className="h-6 w-6 text-muted-foreground animate-pulse" />
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                className="hidden"
-                id="edit-id-document-file"
-                onChange={handleUploadFile}
-                disabled={isPending}
-              />
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
+                        <FileText className="h-4 w-4" />
+                      </span>
+                      <span className="truncate text-sm font-medium">
+                        {fill(tEdit.documentLabel, { index: index + 1 })}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" asChild>
+                        <a href={url} target="_blank" rel="noopener noreferrer">
+                          {tEdit.viewId}
+                        </a>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => void handleDeleteFile(url)}
+                        disabled={isPending}
+                        aria-label={tEdit.deleteId}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                {tEdit.noDocumentsYet}
+              </p>
+            )}
+            <input
+              ref={addDocumentInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              className="hidden"
+              onChange={(event) => void handleUploadFiles(event)}
+              disabled={isPending}
+            />
+            {idDocumentUrls.length < MAX_ID_DOCUMENTS_PER_REGISTRATION ? (
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                asChild
+                className="w-full"
                 disabled={isPending}
+                onClick={() => addDocumentInputRef.current?.click()}
               >
-                <label htmlFor="edit-id-document-file" className="cursor-pointer">
-                  {uploadIdMutation.isPending ? tEdit.uploading : tEdit.uploadId}
-                </label>
+                <Upload className="h-3.5 w-3.5" />
+                {uploadIdMutation.isPending ? tEdit.uploading : tEdit.uploadId}
               </Button>
-            </div>
-          )}
+            ) : null}
+          </div>
 
           {error && (
             <p className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-2.5 text-sm text-destructive">

@@ -32,7 +32,7 @@ import {
   updateDisplacedStatus,
   updateSyrianDisplaced,
   updateLebaneseDisplaced,
-  uploadDisplacedIdDocument,
+  uploadDisplacedIdDocuments,
   deleteDisplacedIdDocument,
   updateReportStatus,
   validatePropertyNumber,
@@ -205,11 +205,11 @@ export function useSubmitSyrianDisplacedMutation() {
   return useMutation({
     mutationFn: ({
       payload,
-      idDocument,
+      idDocuments,
     }: {
       payload: CreateSyrianDisplacedPayload;
-      idDocument: File;
-    }) => unwrap(submitSyrianDisplaced(payload, idDocument)),
+      idDocuments: File[];
+    }) => unwrap(submitSyrianDisplaced(payload, idDocuments)),
   });
 }
 
@@ -218,11 +218,11 @@ export function useSubmitLebaneseDisplacedMutation() {
   return useMutation({
     mutationFn: ({
       payload,
-      idDocument,
+      idDocuments,
     }: {
       payload: CreateLebaneseDisplacedPayload;
-      idDocument: File;
-    }) => unwrap(submitLebaneseDisplaced(payload, idDocument)),
+      idDocuments: File[];
+    }) => unwrap(submitLebaneseDisplaced(payload, idDocuments)),
   });
 }
 
@@ -400,11 +400,11 @@ export function useUpdateLebaneseDisplacedMutation() {
   });
 }
 
-export function useUploadDisplacedIdDocumentMutation(audience: DisplacedAudience) {
+export function useUploadDisplacedIdDocumentsMutation(audience: DisplacedAudience) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, file }: { id: string; file: File }) =>
-      unwrap(uploadDisplacedIdDocument(audience, id, file)),
+    mutationFn: ({ id, files }: { id: string; files: File[] }) =>
+      unwrap(uploadDisplacedIdDocuments(audience, id, files)),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.displaced.all(audience),
@@ -417,7 +417,8 @@ export function useUploadDisplacedIdDocumentMutation(audience: DisplacedAudience
 export function useDeleteDisplacedIdDocumentMutation(audience: DisplacedAudience) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => unwrap(deleteDisplacedIdDocument(audience, id)),
+    mutationFn: ({ id, url }: { id: string; url: string }) =>
+      unwrap(deleteDisplacedIdDocument(audience, id, url)),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.displaced.all(audience),

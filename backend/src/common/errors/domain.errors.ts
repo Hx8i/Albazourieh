@@ -19,6 +19,7 @@ export type DomainErrorCode =
   | 'INVALID_FILE'
   | 'PROPERTY_NUMBER_TAKEN'
   | 'MISSING_REQUIRED_FILE'
+  | 'TOO_MANY_ID_DOCUMENTS'
   | 'DISPLACED_NOT_FOUND'
   | 'STAFF_NOT_FOUND'
   | 'STAFF_EMAIL_TAKEN'
@@ -137,6 +138,17 @@ export class MissingRequiredFileError extends DomainError {
     super({
       en: `The required file "${field}" is missing from the submission`,
       ar: `المستند المطلوب "${field}" غير مرفق بالطلب`,
+    });
+  }
+}
+
+export class TooManyIdDocumentsError extends DomainError {
+  readonly code = 'TOO_MANY_ID_DOCUMENTS';
+
+  constructor(limit: number) {
+    super({
+      en: `A registration can carry at most ${limit} identity documents`,
+      ar: `لا يمكن أن يحمل التسجيل أكثر من ${limit} مستندات هوية`,
     });
   }
 }

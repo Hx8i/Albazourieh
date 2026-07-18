@@ -154,3 +154,11 @@ export type UpdateDisplacedStatusDto = z.infer<
 export const displacedIdParamSchema = z
   .string()
   .uuid('Registration id must be a UUID');
+
+// ───────────────────── Identity documents (files) ─────────────────────
+
+/** Ceiling on identity documents a single registration can carry. */
+export const MAX_ID_DOCUMENTS_PER_REGISTRATION = 6;
+
+/** Query param validating the target URL on a delete-one-document call. */
+export const idDocumentUrlQuerySchema = z.string().trim().url();

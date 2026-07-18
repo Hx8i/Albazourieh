@@ -77,8 +77,8 @@ interface DisplacedItemBase {
   familyMembersCount: number;
   familyMembersNames: string;
   urgentNeeds: UrgentNeed[];
-  /** Identity document (photo or PDF) proving who registered. */
-  idDocumentUrl: string | null;
+  /** Identity document(s) (photo or PDF) proving who registered. */
+  idDocumentUrls: string[];
   status: DisplacedStatus;
   /** ISO-8601 timestamp. */
   createdAt: string;
@@ -121,3 +121,6 @@ export interface DisplacedSummary {
   /** Bar chart: how many registrations ticked each need. */
   needs: Record<UrgentNeed, number>;
 }
+
+/** Ceiling on identity documents a single registration can carry. */
+export const MAX_ID_DOCUMENTS_PER_REGISTRATION = 6;

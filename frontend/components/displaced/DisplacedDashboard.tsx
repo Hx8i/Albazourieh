@@ -309,18 +309,19 @@ export function DisplacedDashboard({
         id: 'idDocument',
         header: tDash.table.idDocument,
         enableSorting: false,
-        meta: { headerClassName: 'w-[110px]', cellClassName: CELL_PADDING },
+        meta: { headerClassName: 'w-[130px]', cellClassName: CELL_PADDING },
         cell: ({ row }) =>
-          row.original.idDocumentUrl ? (
-            <Button asChild variant="outline" size="sm">
-              <a
-                href={row.original.idDocumentUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                {tDash.table.viewId}
-              </a>
+          row.original.idDocumentUrls.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              aria-expanded={row.getIsExpanded()}
+              onClick={() => row.toggleExpanded()}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {fill(tDash.table.idDocumentCount, {
+                count: row.original.idDocumentUrls.length,
+              })}
             </Button>
           ) : (
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
@@ -492,6 +493,19 @@ export function DisplacedDashboard({
             loading={listQuery.isFetching}
             error={loadErrorMessage}
             onRetry={() => void listQuery.refetch()}
+            renderSubRow={(row) => (
+              <div className="flex flex-wrap gap-2 py-2">
+                {row.original.idDocumentUrls.map((url, index) => (
+                  <Button key={url} asChild variant="outline" size="sm">
+                    <a href={url} target="_blank" rel="noreferrer">
+                      <FileText className="h-3.5 w-3.5" />
+                      {fill(tDash.table.documentLabel, { index: index + 1 })}
+                    </a>
+                  </Button>
+                ))}
+              </div>
+            )}
+            getRowCanExpand={(row) => row.original.idDocumentUrls.length > 0}
           />
         </CardContent>
       </Card>

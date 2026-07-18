@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AuditLogService } from '../audit/audit-log.service';
 import { TtlCacheService } from '../common/cache/ttl-cache.service';
-import { DisplacedRegistrationNotFoundError } from '../common/errors/domain.errors';
+import {
+  DisplacedRegistrationNotFoundError,
+  TooManyIdDocumentsError,
+} from '../common/errors/domain.errors';
 import { UploadsService } from '../uploads/uploads.service';
 import { LebaneseDisplaced, Prisma, SyrianDisplaced } from '../generated/prisma/client';
 import {
@@ -9,6 +12,7 @@ import {
   CreateSyrianDisplacedDto,
   DisplacedStatus,
   ListDisplacedQueryDto,
+  MAX_ID_DOCUMENTS_PER_REGISTRATION,
   UpdateDisplacedStatusDto,
   UpdateSyrianDisplacedDto,
   UpdateLebaneseDisplacedDto,
@@ -54,40 +58,53 @@ export class DisplacedService {
 
   async submitSyrian(
     payload: CreateSyrianDisplacedDto,
-    idDocument: Express.Multer.File,
+    idDocuments: Express.Multer.File[],
   ): Promise<SyrianDisplaced> {
-    const idDocumentUrl = await this.uploadIdDocument(idDocument);
-    const created = await this.repository.createSyrian(payload, idDocumentUrl);
+    this.assertWithinDocumentCap(idDocuments.length);
+    const idDocumentUrls = await this.uploadIdDocuments(idDocuments);
+    const created = await this.repository.createSyrian(payload, idDocumentUrls);
     this.cache.invalidatePrefix(CACHE_PREFIX.SYRIAN);
     return created;
   }
 
   async submitLebanese(
     payload: CreateLebaneseDisplacedDto,
-    idDocument: Express.Multer.File,
+    idDocuments: Express.Multer.File[],
   ): Promise<LebaneseDisplaced> {
-    const idDocumentUrl = await this.uploadIdDocument(idDocument);
+    this.assertWithinDocumentCap(idDocuments.length);
+    const idDocumentUrls = await this.uploadIdDocuments(idDocuments);
     const created = await this.repository.createLebanese(
       payload,
-      idDocumentUrl,
+      idDocumentUrls,
     );
     this.cache.invalidatePrefix(CACHE_PREFIX.LEBANESE);
     return created;
   }
 
+  private assertWithinDocumentCap(count: number): void {
+    if (count > MAX_ID_DOCUMENTS_PER_REGISTRATION) {
+      throw new TooManyIdDocumentsError(MAX_ID_DOCUMENTS_PER_REGISTRATION);
+    }
+  }
+
   /**
-   * The registrant's identity proof (ID card / passport photo or PDF):
-   * content-sniffed, size-checked and streamed to Supabase Storage by
-   * the shared evidence pipeline before the row is persisted.
+   * The registrant's identity proof (ID card / passport photo(s) or
+   * PDF(s)): content-sniffed, size-checked and streamed to Supabase
+   * Storage by the shared evidence pipeline (in parallel, same pattern
+   * as the damage-report multipart pipeline) before the row is persisted.
    */
-  private async uploadIdDocument(
-    idDocument: Express.Multer.File,
-  ): Promise<string> {
-    return this.uploads.uploadEvidence(
-      'document',
-      idDocument.buffer,
-      idDocument.originalname,
-      idDocument.mimetype,
+  private async uploadIdDocuments(
+    idDocuments: Express.Multer.File[],
+  ): Promise<string[]> {
+    return Promise.all(
+      idDocuments.map((file) =>
+        this.uploads.uploadEvidence(
+          'document',
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        ),
+      ),
     );
   }
 
@@ -211,12 +228,19 @@ export class DisplacedService {
     return updated;
   }
 
-  async uploadIdDocumentForRegistration(
+  /**
+   * Staff "add document" action: uploads one or more files and appends
+   * them to the registration's existing document list (never replaces
+   * it), rejecting the request up front if the combined total would
+   * exceed the per-registration cap. Returns the full updated list so
+   * the edit dialog can render it immediately.
+   */
+  async uploadIdDocumentsForRegistration(
     audience: DisplacedAudience,
     id: string,
-    file: Express.Multer.File,
+    files: Express.Multer.File[],
     reviewer: ActingReviewer,
-  ): Promise<string> {
+  ): Promise<string[]> {
     const existing =
       audience === 'SYRIAN'
         ? await this.repository.findSyrianById(id)
@@ -224,39 +248,49 @@ export class DisplacedService {
     if (!existing) {
       throw new DisplacedRegistrationNotFoundError(id);
     }
-
-    const idDocumentUrl = await this.uploads.uploadEvidence(
-      'document',
-      file.buffer,
-      file.originalname,
-      file.mimetype,
-    );
-
-    if (audience === 'SYRIAN') {
-      await this.repository.updateSyrian(id, { idDocumentUrl });
-    } else {
-      await this.repository.updateLebanese(id, { idDocumentUrl });
+    if (
+      existing.idDocumentUrls.length + files.length >
+      MAX_ID_DOCUMENTS_PER_REGISTRATION
+    ) {
+      throw new TooManyIdDocumentsError(MAX_ID_DOCUMENTS_PER_REGISTRATION);
     }
+
+    const uploadedUrls = await this.uploadIdDocuments(files);
+
+    const updated =
+      audience === 'SYRIAN'
+        ? await this.repository.updateSyrian(id, {
+            idDocumentUrls: { push: uploadedUrls },
+          })
+        : await this.repository.updateLebanese(id, {
+            idDocumentUrls: { push: uploadedUrls },
+          });
 
     await this.audit.record({
       adminId: reviewer.id,
       adminName: reviewer.name,
       actionType: 'UPDATE_DISPLACED_REGISTRATION',
       targetId: id,
-      details: `Uploaded new ID document for ${AUDIENCE_LABEL[audience].en} "${existing.fullName}"`,
-      detailsAr: `تحميل مستند هوية جديد لـ ${AUDIENCE_LABEL[audience].ar} "${existing.fullName}"`,
+      details: `Uploaded ${uploadedUrls.length} new ID document(s) for ${AUDIENCE_LABEL[audience].en} "${existing.fullName}"`,
+      detailsAr: `تحميل ${uploadedUrls.length} مستند(ات) هوية جديدة لـ ${AUDIENCE_LABEL[audience].ar} "${existing.fullName}"`,
       ipAddress: reviewer.ipAddress,
     });
 
     this.cache.invalidatePrefix(CACHE_PREFIX[audience]);
-    return idDocumentUrl;
+    return updated.idDocumentUrls;
   }
 
+  /**
+   * Staff "delete document" action: removes exactly one URL from the
+   * registration's document list, leaving the rest untouched. Returns
+   * the full updated list.
+   */
   async deleteIdDocument(
     audience: DisplacedAudience,
     id: string,
+    url: string,
     reviewer: ActingReviewer,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const existing =
       audience === 'SYRIAN'
         ? await this.repository.findSyrianById(id)
@@ -265,23 +299,27 @@ export class DisplacedService {
       throw new DisplacedRegistrationNotFoundError(id);
     }
 
-    if (audience === 'SYRIAN') {
-      await this.repository.updateSyrian(id, { idDocumentUrl: null });
-    } else {
-      await this.repository.updateLebanese(id, { idDocumentUrl: null });
-    }
+    const idDocumentUrls = existing.idDocumentUrls.filter(
+      (existingUrl) => existingUrl !== url,
+    );
+
+    const updated =
+      audience === 'SYRIAN'
+        ? await this.repository.updateSyrian(id, { idDocumentUrls })
+        : await this.repository.updateLebanese(id, { idDocumentUrls });
 
     await this.audit.record({
       adminId: reviewer.id,
       adminName: reviewer.name,
       actionType: 'UPDATE_DISPLACED_REGISTRATION',
       targetId: id,
-      details: `Deleted ID document for ${AUDIENCE_LABEL[audience].en} "${existing.fullName}"`,
+      details: `Deleted an ID document for ${AUDIENCE_LABEL[audience].en} "${existing.fullName}"`,
       detailsAr: `حذف مستند هوية لـ ${AUDIENCE_LABEL[audience].ar} "${existing.fullName}"`,
       ipAddress: reviewer.ipAddress,
     });
 
     this.cache.invalidatePrefix(CACHE_PREFIX[audience]);
+    return updated.idDocumentUrls;
   }
 
   private async recordStatusAudit(

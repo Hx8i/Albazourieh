@@ -282,33 +282,35 @@ export function updateReportStatus(
 
 // ─────────────── Displaced persons (Syrian / Lebanese) ────────────────
 
-/** JSON payload + the registrant's identity document in one FormData body. */
-function displacedFormData(payload: unknown, idDocument: File): FormData {
+/** JSON payload + the registrant's identity document(s) in one FormData body. */
+function displacedFormData(payload: unknown, idDocuments: File[]): FormData {
   const formData = new FormData();
   formData.append('payload', JSON.stringify(payload));
-  formData.append('idDocument', idDocument, idDocument.name);
+  for (const file of idDocuments) {
+    formData.append('idDocument', file, file.name);
+  }
   return formData;
 }
 
 /** Public intake: register a Syrian displaced household. */
 export function submitSyrianDisplaced(
   payload: CreateSyrianDisplacedPayload,
-  idDocument: File,
+  idDocuments: File[],
 ): Promise<ApiResult<SyrianDisplacedItem>> {
   return request<SyrianDisplacedItem>('/displaced/syrian', {
     method: 'POST',
-    body: displacedFormData(payload, idDocument),
+    body: displacedFormData(payload, idDocuments),
   });
 }
 
 /** Public intake: register a Lebanese displaced household. */
 export function submitLebaneseDisplaced(
   payload: CreateLebaneseDisplacedPayload,
-  idDocument: File,
+  idDocuments: File[],
 ): Promise<ApiResult<LebaneseDisplacedItem>> {
   return request<LebaneseDisplacedItem>('/displaced/lebanese', {
     method: 'POST',
-    body: displacedFormData(payload, idDocument),
+    body: displacedFormData(payload, idDocuments),
   });
 }
 
@@ -406,16 +408,18 @@ export function updateLebaneseDisplaced(
   );
 }
 
-/** Upload a displaced registration's ID document. */
-export function uploadDisplacedIdDocument(
+/** Append one or more ID documents to a displaced registration. */
+export function uploadDisplacedIdDocuments(
   audience: DisplacedAudience,
   id: string,
-  file: File,
-): Promise<ApiResult<{ url: string }>> {
+  files: File[],
+): Promise<ApiResult<{ idDocumentUrls: string[] }>> {
   const formData = new FormData();
-  formData.append('idDocument', file);
+  for (const file of files) {
+    formData.append('idDocument', file, file.name);
+  }
 
-  return request<{ url: string }>(
+  return request<{ idDocumentUrls: string[] }>(
     `/displaced/${audience}/${id}/id-document`,
     {
       method: 'POST',
@@ -425,13 +429,15 @@ export function uploadDisplacedIdDocument(
   );
 }
 
-/** Delete a displaced registration's ID document. */
+/** Remove exactly one ID document (by URL) from a displaced registration. */
 export function deleteDisplacedIdDocument(
   audience: DisplacedAudience,
   id: string,
-): Promise<ApiResult<void>> {
-  return request<void>(
-    `/displaced/${audience}/${id}/id-document`,
+  url: string,
+): Promise<ApiResult<{ idDocumentUrls: string[] }>> {
+  const search = new URLSearchParams({ url });
+  return request<{ idDocumentUrls: string[] }>(
+    `/displaced/${audience}/${id}/id-document?${search.toString()}`,
     { method: 'DELETE' },
     { staffAuth: true },
   );

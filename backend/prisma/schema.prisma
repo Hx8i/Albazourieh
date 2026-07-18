@@ -245,9 +245,9 @@ model SyrianDisplaced {
   /// UNHCR / government registration number — absent when unregistered.
   registrationNumber String?         @db.VarChar(60)
   shelterType        ShelterType
-  /// Identity document (ID card / passport photo or PDF) proving who is
-  /// registering — streamed to Supabase Storage, URL kept here.
-  idDocumentUrl      String?         @db.VarChar(2048)
+  /// Identity document(s) (ID card / passport photo or PDF) proving who
+  /// is registering — streamed to Supabase Storage, URLs kept here.
+  idDocumentUrls     String[]        @default([])
   /// Selected urgent needs (FOOD/MEDICAL/SHELTER/CASH), possibly empty.
   urgentNeeds        String[]
   /// Date the household entered Lebanon.
@@ -272,9 +272,9 @@ model LebaneseDisplaced {
   originVillage         String          @db.VarChar(120)
   isPropertyDamaged     Boolean         @default(false)
   primarySourceOfIncome String?         @db.VarChar(120)
-  /// Identity document (ID card / passport photo or PDF) proving who is
-  /// registering — streamed to Supabase Storage, URL kept here.
-  idDocumentUrl         String?         @db.VarChar(2048)
+  /// Identity document(s) (ID card / passport photo or PDF) proving who
+  /// is registering — streamed to Supabase Storage, URLs kept here.
+  idDocumentUrls        String[]        @default([])
   /// Selected urgent needs (FOOD/MEDICAL/SHELTER/CASH), possibly empty.
   urgentNeeds           String[]
   /// Date the household was displaced from its village.

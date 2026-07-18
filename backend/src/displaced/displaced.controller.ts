@@ -11,11 +11,11 @@ import {
   Post,
   Query,
   Req,
-  UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthenticatedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MissingRequiredFileError } from '../common/errors/domain.errors';
@@ -26,10 +26,12 @@ import {
 import { LebaneseDisplaced, SyrianDisplaced } from '../generated/prisma/client';
 import {
   ListDisplacedQueryDto,
+  MAX_ID_DOCUMENTS_PER_REGISTRATION,
   UpdateDisplacedStatusDto,
   createLebaneseDisplacedSchema,
   createSyrianDisplacedSchema,
   displacedIdParamSchema,
+  idDocumentUrlQuerySchema,
   listDisplacedQuerySchema,
   updateDisplacedStatusSchema,
   updateSyrianDisplacedSchema,
@@ -43,7 +45,7 @@ import {
 } from './displaced.repository';
 import { DisplacedService } from './displaced.service';
 
-/** Single-file ceiling for the identity document upload. */
+/** Single-file ceiling for each identity document upload. */
 const ID_DOCUMENT_LIMIT_BYTES = 11 * 1024 * 1024;
 
 /** Parses and validates the JSON `payload` field of the multipart body. */
@@ -71,29 +73,29 @@ export class DisplacedController {
 
   /**
    * Public intake form submission (rate-limited, no login). One
-   * multipart/form-data request: the JSON `payload` field plus the
-   * mandatory `idDocument` file identifying the registrant.
+   * multipart/form-data request: the JSON `payload` field plus one or
+   * more `idDocument` files identifying the registrant.
    */
   @Post('syrian')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseInterceptors(
-    FileInterceptor('idDocument', {
-      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES, files: 1 },
+    FilesInterceptor('idDocument', MAX_ID_DOCUMENTS_PER_REGISTRATION, {
+      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES },
     }),
   )
   async submitSyrian(
     @Body('payload') rawPayload: string | undefined,
-    @UploadedFile() idDocument: Express.Multer.File | undefined,
+    @UploadedFiles() idDocuments: Express.Multer.File[] | undefined,
   ): Promise<SyrianDisplaced> {
     const dto = validateWithSchema(
       createSyrianDisplacedSchema,
       parsePayload(rawPayload),
     );
-    if (!idDocument) {
+    if (!idDocuments?.length) {
       throw new MissingRequiredFileError('idDocument');
     }
-    return this.service.submitSyrian(dto, idDocument);
+    return this.service.submitSyrian(dto, idDocuments);
   }
 
   /** Municipality staff: filterable, searchable, paginated inbox. */
@@ -145,69 +147,83 @@ export class DisplacedController {
     });
   }
 
+  /** Municipality staff: append one or more ID documents to a registration. */
   @Post('syrian/:id/id-document')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
-    FileInterceptor('idDocument', {
-      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES, files: 1 },
+    FilesInterceptor('idDocument', MAX_ID_DOCUMENTS_PER_REGISTRATION, {
+      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES },
     }),
   )
   async uploadSyrianIdDocument(
     @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
-    @UploadedFile() file: Express.Multer.File | undefined,
+    @UploadedFiles() files: Express.Multer.File[] | undefined,
     @Req() request: AuthenticatedRequest,
-  ): Promise<{ url: string }> {
-    if (!file) {
+  ): Promise<{ idDocumentUrls: string[] }> {
+    if (!files?.length) {
       throw new MissingRequiredFileError('idDocument');
     }
-    const url = await this.service.uploadIdDocumentForRegistration('SYRIAN', id, file, {
-      id: request.user.sub,
-      name: request.user.fullName,
-      ipAddress: request.ip,
-    });
-    return { url };
+    const idDocumentUrls = await this.service.uploadIdDocumentsForRegistration(
+      'SYRIAN',
+      id,
+      files,
+      {
+        id: request.user.sub,
+        name: request.user.fullName,
+        ipAddress: request.ip,
+      },
+    );
+    return { idDocumentUrls };
   }
 
+  /** Municipality staff: remove exactly one ID document from a registration. */
   @Delete('syrian/:id/id-document')
   @UseGuards(JwtAuthGuard)
   async deleteSyrianIdDocument(
     @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
+    @Query('url', new ZodValidationPipe(idDocumentUrlQuerySchema)) url: string,
     @Req() request: AuthenticatedRequest,
-  ): Promise<void> {
-    await this.service.deleteIdDocument('SYRIAN', id, {
-      id: request.user.sub,
-      name: request.user.fullName,
-      ipAddress: request.ip,
-    });
+  ): Promise<{ idDocumentUrls: string[] }> {
+    const idDocumentUrls = await this.service.deleteIdDocument(
+      'SYRIAN',
+      id,
+      url,
+      {
+        id: request.user.sub,
+        name: request.user.fullName,
+        ipAddress: request.ip,
+      },
+    );
+    return { idDocumentUrls };
   }
 
   // ────────────────────── Lebanese displaced (نازحين) ──────────────────
 
   /**
    * Public intake form submission (rate-limited, no login). One
-   * multipart/form-data request: the JSON `payload` field plus the
-   * mandatory `idDocument` file identifying the registrant.
+   * multipart/form-data request: the JSON `payload` field plus one or
+   * more `idDocument` files identifying the registrant.
    */
   @Post('lebanese')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseInterceptors(
-    FileInterceptor('idDocument', {
-      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES, files: 1 },
+    FilesInterceptor('idDocument', MAX_ID_DOCUMENTS_PER_REGISTRATION, {
+      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES },
     }),
   )
   async submitLebanese(
     @Body('payload') rawPayload: string | undefined,
-    @UploadedFile() idDocument: Express.Multer.File | undefined,
+    @UploadedFiles() idDocuments: Express.Multer.File[] | undefined,
   ): Promise<LebaneseDisplaced> {
     const dto = validateWithSchema(
       createLebaneseDisplacedSchema,
       parsePayload(rawPayload),
     );
-    if (!idDocument) {
+    if (!idDocuments?.length) {
       throw new MissingRequiredFileError('idDocument');
     }
-    return this.service.submitLebanese(dto, idDocument);
+    return this.service.submitLebanese(dto, idDocuments);
   }
 
   /** Municipality staff: filterable, searchable, paginated inbox. */
@@ -259,39 +275,53 @@ export class DisplacedController {
     });
   }
 
+  /** Municipality staff: append one or more ID documents to a registration. */
   @Post('lebanese/:id/id-document')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
-    FileInterceptor('idDocument', {
-      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES, files: 1 },
+    FilesInterceptor('idDocument', MAX_ID_DOCUMENTS_PER_REGISTRATION, {
+      limits: { fileSize: ID_DOCUMENT_LIMIT_BYTES },
     }),
   )
   async uploadLebaneseIdDocument(
     @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
-    @UploadedFile() file: Express.Multer.File | undefined,
+    @UploadedFiles() files: Express.Multer.File[] | undefined,
     @Req() request: AuthenticatedRequest,
-  ): Promise<{ url: string }> {
-    if (!file) {
+  ): Promise<{ idDocumentUrls: string[] }> {
+    if (!files?.length) {
       throw new MissingRequiredFileError('idDocument');
     }
-    const url = await this.service.uploadIdDocumentForRegistration('LEBANESE', id, file, {
-      id: request.user.sub,
-      name: request.user.fullName,
-      ipAddress: request.ip,
-    });
-    return { url };
+    const idDocumentUrls = await this.service.uploadIdDocumentsForRegistration(
+      'LEBANESE',
+      id,
+      files,
+      {
+        id: request.user.sub,
+        name: request.user.fullName,
+        ipAddress: request.ip,
+      },
+    );
+    return { idDocumentUrls };
   }
 
+  /** Municipality staff: remove exactly one ID document from a registration. */
   @Delete('lebanese/:id/id-document')
   @UseGuards(JwtAuthGuard)
   async deleteLebaneseIdDocument(
     @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
+    @Query('url', new ZodValidationPipe(idDocumentUrlQuerySchema)) url: string,
     @Req() request: AuthenticatedRequest,
-  ): Promise<void> {
-    await this.service.deleteIdDocument('LEBANESE', id, {
-      id: request.user.sub,
-      name: request.user.fullName,
-      ipAddress: request.ip,
-    });
+  ): Promise<{ idDocumentUrls: string[] }> {
+    const idDocumentUrls = await this.service.deleteIdDocument(
+      'LEBANESE',
+      id,
+      url,
+      {
+        id: request.user.sub,
+        name: request.user.fullName,
+        ipAddress: request.ip,
+      },
+    );
+    return { idDocumentUrls };
   }
 }

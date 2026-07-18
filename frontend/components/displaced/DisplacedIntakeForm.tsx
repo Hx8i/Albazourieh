@@ -36,6 +36,7 @@ import {
 import { toApiError } from '@/lib/query-client';
 import {
   DisplacedAudience,
+  MAX_ID_DOCUMENTS_PER_REGISTRATION,
   SHELTER_TYPES,
   ShelterType,
   URGENT_NEEDS,
@@ -87,8 +88,8 @@ interface FormState {
   needs: UrgentNeed[];
   /** "YYYY-MM-DD" from the native date input. */
   date: string;
-  /** Identity document (photo compressed client-side, or PDF). */
-  idDocument: File | null;
+  /** Identity document(s) (photos compressed client-side, or PDFs). */
+  idDocuments: File[];
 }
 
 const INITIAL_STATE: FormState = {
@@ -103,7 +104,7 @@ const INITIAL_STATE: FormState = {
   income: '',
   needs: [],
   date: '',
-  idDocument: null,
+  idDocuments: [],
 };
 
 interface DisplacedIntakeFormProps {
@@ -163,26 +164,41 @@ export function DisplacedIntakeForm({
   };
 
   /** Images are shrunk in the browser; PDFs pass through with a size guard. */
-  const handleIdDocumentChange = async (
+  const handleIdDocumentsChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ): Promise<void> => {
-    const selected = event.target.files?.[0] ?? null;
-    // Allow re-selecting the same file after a remove.
+    const selected = Array.from(event.target.files ?? []);
+    // Allow re-selecting the same file(s) after a remove.
     event.target.value = '';
-    if (!selected) return;
+    if (selected.length === 0) return;
 
     setCompressing(true);
     try {
-      const prepared = await compressImage(selected);
-      if (prepared.size > SAFE_UPLOAD_BYTES) {
-        setState((previous) => ({ ...previous, idDocument: null }));
-        setErrors((previous) => ({ ...previous, idDocument: 'fileTooLarge' }));
+      const prepared = await Promise.all(selected.map((file) => compressImage(file)));
+      if (prepared.some((file) => file.size > SAFE_UPLOAD_BYTES)) {
+        setErrors((previous) => ({ ...previous, idDocuments: 'fileTooLarge' }));
         return;
       }
-      set('idDocument', prepared);
+      setState((previous) => {
+        const combined = [...previous.idDocuments, ...prepared].slice(
+          0,
+          MAX_ID_DOCUMENTS_PER_REGISTRATION,
+        );
+        return { ...previous, idDocuments: combined };
+      });
+      setErrors((previous) =>
+        previous.idDocuments ? { ...previous, idDocuments: undefined } : previous,
+      );
     } finally {
       setCompressing(false);
     }
+  };
+
+  const removeIdDocument = (index: number): void => {
+    setState((previous) => ({
+      ...previous,
+      idDocuments: previous.idDocuments.filter((_, i) => i !== index),
+    }));
   };
 
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -207,10 +223,10 @@ export function DisplacedIntakeForm({
     if (!/^\d{4}-\d{2}-\d{2}$/.test(state.date) || state.date > todayIso) {
       next.date = 'dateRequired';
     }
-    if (!state.idDocument) {
-      next.idDocument = 'idRequired';
-    } else if (state.idDocument.size > SAFE_UPLOAD_BYTES) {
-      next.idDocument = 'fileTooLarge';
+    if (state.idDocuments.length === 0) {
+      next.idDocuments = 'idRequired';
+    } else if (state.idDocuments.some((file) => file.size > SAFE_UPLOAD_BYTES)) {
+      next.idDocuments = 'fileTooLarge';
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -222,8 +238,8 @@ export function DisplacedIntakeForm({
     event.preventDefault();
     setSubmitError(null);
     if (!validate() || pending || compressing) return;
-    const idDocument = state.idDocument;
-    if (!idDocument) return;
+    const idDocuments = state.idDocuments;
+    if (idDocuments.length === 0) return;
 
     const shared = {
       fullName: state.fullName.trim(),
@@ -243,7 +259,7 @@ export function DisplacedIntakeForm({
             shelterType: state.shelterType as ShelterType,
             entryDate: state.date,
           },
-          idDocument,
+          idDocuments,
         });
       } else {
         await submitLebanese.mutateAsync({
@@ -254,7 +270,7 @@ export function DisplacedIntakeForm({
             primarySourceOfIncome: state.income.trim() || undefined,
             displacementDate: state.date,
           },
-          idDocument,
+          idDocuments,
         });
       }
       // Clear everything immediately so "register another" starts fresh.
@@ -351,26 +367,35 @@ export function DisplacedIntakeForm({
                   ref={idInputRef}
                   type="file"
                   accept={ID_ACCEPT}
+                  multiple
                   className="hidden"
-                  onChange={(event) => void handleIdDocumentChange(event)}
+                  onChange={(event) => void handleIdDocumentsChange(event)}
                 />
-                {state.idDocument ? (
-                  <div className="flex items-center justify-between rounded-lg border bg-muted/40 p-2 text-sm">
-                    <span className="inline-flex min-w-0 items-center gap-2">
-                      <Paperclip className="h-4 w-4 shrink-0 text-emerald-600" />
-                      <span className="truncate">{state.idDocument.name}</span>
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-label={dict.wizard.photosRemove}
-                      onClick={() => set('idDocument', null)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                ) : (
+                {state.idDocuments.length > 0 ? (
+                  <ul className="space-y-2">
+                    {state.idDocuments.map((file, index) => (
+                      <li
+                        key={`${file.name}-${index}`}
+                        className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 p-2 text-sm"
+                      >
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <Paperclip className="h-4 w-4 shrink-0 text-emerald-600" />
+                          <span className="truncate">{file.name}</span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={dict.wizard.photosRemove}
+                          onClick={() => removeIdDocument(index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {state.idDocuments.length < MAX_ID_DOCUMENTS_PER_REGISTRATION ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -385,8 +410,8 @@ export function DisplacedIntakeForm({
                     )}
                     {dict.wizard.chooseFile}
                   </Button>
-                )}
-                {errorText('idDocument')}
+                ) : null}
+                {errorText('idDocuments')}
               </div>
             </section>
 

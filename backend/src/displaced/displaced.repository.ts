@@ -93,7 +93,7 @@ export class DisplacedRepository {
 
   async createSyrian(
     input: CreateSyrianDisplacedDto,
-    idDocumentUrl: string,
+    idDocumentUrls: string[],
   ): Promise<SyrianDisplaced> {
     return this.prisma.syrianDisplaced.create({
       data: {
@@ -104,7 +104,7 @@ export class DisplacedRepository {
         originalCity: input.originalCity,
         registrationNumber: input.registrationNumber,
         shelterType: input.shelterType,
-        idDocumentUrl,
+        idDocumentUrls,
         urgentNeeds: input.urgentNeeds,
         entryDate: toCalendarDate(input.entryDate),
       },
@@ -113,7 +113,7 @@ export class DisplacedRepository {
 
   async createLebanese(
     input: CreateLebaneseDisplacedDto,
-    idDocumentUrl: string,
+    idDocumentUrls: string[],
   ): Promise<LebaneseDisplaced> {
     return this.prisma.lebaneseDisplaced.create({
       data: {
@@ -124,7 +124,7 @@ export class DisplacedRepository {
         originVillage: input.originVillage,
         isPropertyDamaged: input.isPropertyDamaged,
         primarySourceOfIncome: input.primarySourceOfIncome,
-        idDocumentUrl,
+        idDocumentUrls,
         urgentNeeds: input.urgentNeeds,
         displacementDate: toCalendarDate(input.displacementDate),
       },
