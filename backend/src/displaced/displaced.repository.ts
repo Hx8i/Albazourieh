@@ -99,13 +99,19 @@ export class DisplacedRepository {
       data: {
         fullName: input.fullName,
         phone: input.phone,
+        alternatePhone: input.alternatePhone,
         familyMembersCount: input.familyMembersCount,
         familyMembersNames: input.familyMembersNames,
+        neighborhoodName: input.neighborhoodName,
+        buildingName: input.buildingName,
+        shelterType: input.shelterType,
+        shelterContactName: input.shelterContactName,
+        shelterContactPhone: input.shelterContactPhone,
         originalCity: input.originalCity,
         registrationNumber: input.registrationNumber,
-        shelterType: input.shelterType,
         idDocumentUrls,
         urgentNeeds: input.urgentNeeds,
+        vulnerabilityStatus: input.vulnerabilityStatus,
         entryDate: toCalendarDate(input.entryDate),
       },
     });
@@ -119,13 +125,20 @@ export class DisplacedRepository {
       data: {
         fullName: input.fullName,
         phone: input.phone,
+        alternatePhone: input.alternatePhone,
         familyMembersCount: input.familyMembersCount,
         familyMembersNames: input.familyMembersNames,
+        neighborhoodName: input.neighborhoodName,
+        buildingName: input.buildingName,
+        shelterType: input.shelterType,
+        shelterContactName: input.shelterContactName,
+        shelterContactPhone: input.shelterContactPhone,
         originVillage: input.originVillage,
         isPropertyDamaged: input.isPropertyDamaged,
         primarySourceOfIncome: input.primarySourceOfIncome,
         idDocumentUrls,
         urgentNeeds: input.urgentNeeds,
+        vulnerabilityStatus: input.vulnerabilityStatus,
         displacementDate: toCalendarDate(input.displacementDate),
       },
     });
@@ -265,6 +278,7 @@ export class DisplacedRepository {
       MEDICAL: 0,
       SHELTER: 0,
       CASH: 0,
+      WINTERIZATION: 0,
     };
     for (const row of needRows) {
       if (row.need in needs) {

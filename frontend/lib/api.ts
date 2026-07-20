@@ -429,6 +429,30 @@ export function uploadDisplacedIdDocuments(
   );
 }
 
+/** One registration for the staff detail page. */
+export function getDisplacedById(
+  audience: DisplacedAudience,
+  id: string,
+): Promise<ApiResult<SyrianDisplacedItem | LebaneseDisplacedItem>> {
+  return request<SyrianDisplacedItem | LebaneseDisplacedItem>(
+    `/displaced/${audience}/${id}`,
+    undefined,
+    { staffAuth: true },
+  );
+}
+
+/** Trail entry: a staff member opened a registration's detail view. 204 → no body. */
+export function logDisplacedRecordView(
+  audience: DisplacedAudience,
+  id: string,
+): Promise<ApiResult<null>> {
+  return request<null>(
+    `/displaced/${audience}/${id}/view`,
+    { method: 'POST' },
+    { staffAuth: true },
+  );
+}
+
 /** Remove exactly one ID document (by URL) from a displaced registration. */
 export function deleteDisplacedIdDocument(
   audience: DisplacedAudience,
@@ -496,6 +520,8 @@ export type AuditActionType =
   | 'DELETE_STAFF'
   | 'UPDATE_REPORT_STATUS'
   | 'UPDATE_DISPLACED_STATUS'
+  | 'UPDATE_DISPLACED_REGISTRATION'
+  | 'VIEW_DISPLACED_RECORD'
   | 'EDIT_REPORT_DATA'
   | 'EXPORT_DATA';
 

@@ -5,24 +5,25 @@ import { ModuleSwitcher } from '@/components/ModuleSwitcher';
 import { StaffGate } from '@/components/dashboard/StaffGate';
 import { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 import { DisplacedAudience } from '@/lib/schemas/displaced.schema';
-import { DisplacedDashboard } from './DisplacedDashboard';
+import { DisplacedDetailView } from './DisplacedDetailView';
 
-interface DisplacedDashboardShellProps {
+interface DisplacedDetailShellProps {
   dict: Dictionary;
   locale: Locale;
   audience: DisplacedAudience;
+  id: string;
 }
 
 /**
- * Both displaced dashboards render behind the same JWT StaffGate as the
- * War Damages portal — the client gate is cosmetic; the backend enforces
- * authentication on every displaced staff endpoint.
+ * Case-file pages sit behind the same JWT StaffGate + global module nav
+ * as the dashboards, so deep links also require a login.
  */
-export function DisplacedDashboardShell({
+export function DisplacedDetailShell({
   dict,
   locale,
   audience,
-}: DisplacedDashboardShellProps): React.JSX.Element {
+  id,
+}: DisplacedDetailShellProps): React.JSX.Element {
   return (
     <StaffGate dict={dict}>
       {(session) => (
@@ -33,7 +34,12 @@ export function DisplacedDashboardShell({
             active={audience}
             isSuperAdmin={session.user.role === 'SUPER_ADMIN'}
           />
-          <DisplacedDashboard dict={dict} locale={locale} audience={audience} />
+          <DisplacedDetailView
+            dict={dict}
+            locale={locale}
+            audience={audience}
+            id={id}
+          />
         </div>
       )}
     </StaffGate>

@@ -20,6 +20,8 @@ const ACTION_BADGE_CLASS: Record<AuditActionType, string> = {
   DELETE_STAFF: 'bg-red-500/10 text-red-700',
   UPDATE_REPORT_STATUS: 'bg-blue-500/10 text-blue-700',
   UPDATE_DISPLACED_STATUS: 'bg-teal-500/10 text-teal-700',
+  UPDATE_DISPLACED_REGISTRATION: 'bg-cyan-500/10 text-cyan-700',
+  VIEW_DISPLACED_RECORD: 'bg-slate-500/10 text-slate-700',
   EDIT_REPORT_DATA: 'bg-purple-500/10 text-purple-700',
   EXPORT_DATA: 'bg-amber-500/10 text-amber-700',
 };

@@ -2,11 +2,10 @@
 
 import * as React from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { ModuleSwitcher } from '@/components/ModuleSwitcher';
+import { ModuleSwitcher, PlatformModule } from '@/components/ModuleSwitcher';
 import { Dictionary, Locale } from '@/lib/i18n/dictionaries';
 import { AuditTrailPanel } from './AuditTrailPanel';
 import { MunicipalityDashboard } from './MunicipalityDashboard';
-import { PortalNav, PortalSection } from './PortalNav';
 import { ReportDetailView } from './ReportDetailView';
 import { StaffGate } from './StaffGate';
 import { StaffManagementPanel } from './StaffManagementPanel';
@@ -51,17 +50,18 @@ export function DashboardShell({
           );
         }
 
-        const section: PortalSection =
+        // The management tools live in the global nav bar (admin-only);
+        // the tab highlight follows the sub-route being viewed.
+        const section: PlatformModule =
           view === 'management'
             ? 'management'
             : view === 'history'
               ? 'history'
-              : 'dashboard';
+              : 'warDamages';
 
         return (
           <div className="space-y-6">
-            <ModuleSwitcher dict={dict} locale={locale} active="warDamages" />
-            <PortalNav
+            <ModuleSwitcher
               dict={dict}
               locale={locale}
               active={section}

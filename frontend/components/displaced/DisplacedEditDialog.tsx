@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { Loader2, TriangleAlert, X, FileText, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
+import { DocumentViewerDialog } from '@/components/DocumentViewerDialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,11 +19,17 @@ import {
   DisplacedAudience,
   DisplacedItem,
   DisplacedStatus,
+  LEBANESE_SHELTER_TYPES,
   LebaneseDisplacedItem,
+  LebaneseShelterType,
   MAX_ID_DOCUMENTS_PER_REGISTRATION,
+  SHELTER_WITHOUT_CONTACT,
+  SYRIAN_SHELTER_TYPES,
   SyrianDisplacedItem,
-  SHELTER_TYPES,
+  SyrianShelterType,
   ShelterType,
+  VULNERABILITIES,
+  Vulnerability,
 } from '@/lib/schemas/displaced.schema';
 import {
   useUpdateLebaneseDisplacedMutation,
@@ -29,13 +37,14 @@ import {
   useUploadDisplacedIdDocumentsMutation,
   useDeleteDisplacedIdDocumentMutation,
 } from '@/lib/queries';
-import { Dictionary, fill } from '@/lib/i18n/dictionaries';
+import { Dictionary, Locale, fill } from '@/lib/i18n/dictionaries';
 
 interface DisplacedEditDialogProps {
   open: boolean;
   audience: DisplacedAudience;
   item: DisplacedItem | null;
   dict: Dictionary;
+  locale: Locale;
   onClose: () => void;
 }
 
@@ -44,6 +53,7 @@ export function DisplacedEditDialog({
   audience,
   item,
   dict,
+  locale,
   onClose,
 }: DisplacedEditDialogProps): React.JSX.Element | null {
   const t = dict.displaced;
@@ -62,19 +72,28 @@ export function DisplacedEditDialog({
     deleteIdMutation.isPending;
 
   const [error, setError] = React.useState<string | null>(null);
+  // In-site preview for the attached identity documents.
+  const [viewerUrl, setViewerUrl] = React.useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = React.useState('');
 
-  // Form State
+  // Form State — shared
   const [fullName, setFullName] = React.useState('');
   const [phone, setPhone] = React.useState('');
+  const [alternatePhone, setAlternatePhone] = React.useState('');
   const [familyMembersCount, setFamilyMembersCount] = React.useState('');
   const [familyMembersNames, setFamilyMembersNames] = React.useState('');
+  const [neighborhoodName, setNeighborhoodName] = React.useState('');
+  const [buildingName, setBuildingName] = React.useState('');
+  const [shelterType, setShelterType] = React.useState<ShelterType | ''>('');
+  const [shelterContactName, setShelterContactName] = React.useState('');
+  const [shelterContactPhone, setShelterContactPhone] = React.useState('');
+  const [vulnerabilities, setVulnerabilities] = React.useState<Vulnerability[]>([]);
   const [status, setStatus] = React.useState<DisplacedStatus>('PENDING');
   const [idDocumentUrls, setIdDocumentUrls] = React.useState<string[]>([]);
 
   // Syrian specific
   const [originalCity, setOriginalCity] = React.useState('');
   const [registrationNumber, setRegistrationNumber] = React.useState('');
-  const [shelterType, setShelterType] = React.useState<ShelterType | ''>('');
   const [entryDate, setEntryDate] = React.useState('');
 
   // Lebanese specific
@@ -83,14 +102,26 @@ export function DisplacedEditDialog({
   const [primarySourceOfIncome, setPrimarySourceOfIncome] = React.useState('');
   const [displacementDate, setDisplacementDate] = React.useState('');
 
+  const shelterOptions: readonly (SyrianShelterType | LebaneseShelterType)[] =
+    audience === 'syrian' ? SYRIAN_SHELTER_TYPES : LEBANESE_SHELTER_TYPES;
+  const needsContact =
+    shelterType !== '' && shelterType !== SHELTER_WITHOUT_CONTACT;
+
   // Load state when item is set
   React.useEffect(() => {
     if (item && open) {
       setError(null);
       setFullName(item.fullName);
       setPhone(item.phone);
+      setAlternatePhone(item.alternatePhone ?? '');
       setFamilyMembersCount(String(item.familyMembersCount));
       setFamilyMembersNames(item.familyMembersNames);
+      setNeighborhoodName(item.neighborhoodName);
+      setBuildingName(item.buildingName);
+      setShelterType(item.shelterType);
+      setShelterContactName(item.shelterContactName ?? '');
+      setShelterContactPhone(item.shelterContactPhone ?? '');
+      setVulnerabilities(item.vulnerabilityStatus);
       setStatus(item.status);
       setIdDocumentUrls(item.idDocumentUrls);
 
@@ -98,7 +129,6 @@ export function DisplacedEditDialog({
         const syrian = item as SyrianDisplacedItem;
         setOriginalCity(syrian.originalCity);
         setRegistrationNumber(syrian.registrationNumber ?? '');
-        setShelterType(syrian.shelterType);
         setEntryDate(syrian.entryDate ? syrian.entryDate.slice(0, 10) : '');
       } else {
         const lebanese = item as LebaneseDisplacedItem;
@@ -109,6 +139,14 @@ export function DisplacedEditDialog({
       }
     }
   }, [item, open, audience]);
+
+  const toggleVulnerability = (flag: Vulnerability): void => {
+    setVulnerabilities((previous) =>
+      previous.includes(flag)
+        ? previous.filter((item) => item !== flag)
+        : [...previous, flag],
+    );
+  };
 
   // Lock body scroll on open
   React.useEffect(() => {
@@ -160,8 +198,18 @@ export function DisplacedEditDialog({
     const commonPayload = {
       fullName: fullName.trim(),
       phone: phone.trim(),
+      alternatePhone: alternatePhone.trim() || undefined,
       familyMembersCount: parseInt(familyMembersCount, 10) || 1,
       familyMembersNames: familyMembersNames.trim(),
+      neighborhoodName: neighborhoodName.trim(),
+      buildingName: buildingName.trim(),
+      shelterContactName: needsContact
+        ? shelterContactName.trim() || undefined
+        : undefined,
+      shelterContactPhone: needsContact
+        ? shelterContactPhone.trim() || undefined
+        : undefined,
+      vulnerabilityStatus: vulnerabilities,
       status,
     };
 
@@ -169,15 +217,16 @@ export function DisplacedEditDialog({
       if (audience === 'syrian') {
         const payload = {
           ...commonPayload,
+          shelterType: shelterType as SyrianShelterType,
           originalCity: originalCity.trim(),
           registrationNumber: registrationNumber.trim() || undefined,
-          shelterType: shelterType as ShelterType,
           entryDate: entryDate || undefined,
         };
         await updateSyrian.mutateAsync({ id: item.id, payload });
       } else {
         const payload = {
           ...commonPayload,
+          shelterType: shelterType as LebaneseShelterType,
           originVillage: originVillage.trim(),
           isPropertyDamaged,
           primarySourceOfIncome: primarySourceOfIncome.trim() || undefined,
@@ -250,27 +299,40 @@ export function DisplacedEditDialog({
             </Select>
           </div>
 
+          {/* Full Name */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-fullname">{tEdit.fullNameLabel}</Label>
+            <Input
+              id="edit-fullname"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={isPending}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            {/* Full Name */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-fullname">{tEdit.fullNameLabel}</Label>
-              <Input
-                id="edit-fullname"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                disabled={isPending}
-              />
-            </div>
-            
             {/* Phone */}
             <div className="space-y-2">
               <Label htmlFor="edit-phone">{tEdit.phoneLabel}</Label>
               <Input
                 id="edit-phone"
                 required
+                dir="ltr"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+
+            {/* Alternate Phone */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-alt-phone">{t.form.alternatePhoneLabel}</Label>
+              <Input
+                id="edit-alt-phone"
+                dir="ltr"
+                value={alternatePhone}
+                onChange={(e) => setAlternatePhone(e.target.value)}
                 disabled={isPending}
               />
             </div>
@@ -322,55 +384,131 @@ export function DisplacedEditDialog({
             />
           </div>
 
+          {/* Vulnerability status (optional multi-select) */}
+          <div className="space-y-2">
+            <Label>{t.form.vulnerabilityLabel}</Label>
+            <div className="flex flex-wrap gap-2">
+              {VULNERABILITIES.map((flag) => {
+                const selected = vulnerabilities.includes(flag);
+                return (
+                  <button
+                    key={flag}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleVulnerability(flag)}
+                    disabled={isPending}
+                    className={
+                      'rounded-full border-2 px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ' +
+                      (selected
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-input bg-background hover:bg-accent')
+                    }
+                  >
+                    {t.vulnerabilities[flag]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Current location */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-neighborhood">{t.form.neighborhoodLabel}</Label>
+              <Input
+                id="edit-neighborhood"
+                value={neighborhoodName}
+                onChange={(e) => setNeighborhoodName(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-building">{t.form.buildingLabel}</Label>
+              <Input
+                id="edit-building"
+                value={buildingName}
+                onChange={(e) => setBuildingName(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+          </div>
+
+          {/* Shelter Type (both audiences) */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-sheltertype">{tEdit.shelterTypeLabel}</Label>
+            <Select
+              value={shelterType}
+              onValueChange={(val) => setShelterType(val as ShelterType)}
+            >
+              <SelectTrigger id="edit-sheltertype">
+                <SelectValue placeholder={t.form.shelterTypePlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {shelterOptions.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {t.shelterTypes[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Shelter contact — name + phone, for every type but informal settlement */}
+          {needsContact && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-contact-name">
+                  {t.shelterContact[shelterType].nameLabel}
+                </Label>
+                <Input
+                  id="edit-contact-name"
+                  value={shelterContactName}
+                  onChange={(e) => setShelterContactName(e.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-contact-phone">
+                  {t.shelterContact[shelterType].phoneLabel}
+                </Label>
+                <Input
+                  id="edit-contact-phone"
+                  dir="ltr"
+                  value={shelterContactPhone}
+                  onChange={(e) => setShelterContactPhone(e.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Syrian Specific Fields */}
           {audience === 'syrian' && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                {/* Registration Number */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-regnumber">{tEdit.registrationNumberLabel}</Label>
-                  <Input
-                    id="edit-regnumber"
-                    value={registrationNumber}
-                    onChange={(e) => setRegistrationNumber(e.target.value)}
-                    disabled={isPending}
-                  />
-                </div>
-
-                {/* Entry Date */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-entrydate">{tEdit.entryDateLabel}</Label>
-                  <Input
-                    id="edit-entrydate"
-                    type="date"
-                    required
-                    value={entryDate}
-                    onChange={(e) => setEntryDate(e.target.value)}
-                    disabled={isPending}
-                  />
-                </div>
-              </div>
-
-              {/* Shelter Type */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Registration Number */}
               <div className="space-y-2">
-                <Label htmlFor="edit-sheltertype">{tEdit.shelterTypeLabel}</Label>
-                <Select
-                  value={shelterType}
-                  onValueChange={(val) => setShelterType(val as ShelterType)}
-                >
-                  <SelectTrigger id="edit-sheltertype">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SHELTER_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {t.shelterTypes[type]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="edit-regnumber">{tEdit.registrationNumberLabel}</Label>
+                <Input
+                  id="edit-regnumber"
+                  value={registrationNumber}
+                  onChange={(e) => setRegistrationNumber(e.target.value)}
+                  disabled={isPending}
+                />
               </div>
-            </>
+
+              {/* Entry Date */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-entrydate">{tEdit.entryDateLabel}</Label>
+                <DatePicker
+                  id="edit-entrydate"
+                  locale={locale}
+                  value={entryDate}
+                  onChange={setEntryDate}
+                  placeholder={tEdit.entryDateLabel}
+                  disabled={isPending}
+                />
+              </div>
+            </div>
           )}
 
           {/* Lebanese Specific Fields */}
@@ -391,12 +529,12 @@ export function DisplacedEditDialog({
                 {/* Displacement Date */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-displacementdate">{tEdit.displacementDateLabel}</Label>
-                  <Input
+                  <DatePicker
                     id="edit-displacementdate"
-                    type="date"
-                    required
+                    locale={locale}
                     value={displacementDate}
-                    onChange={(e) => setDisplacementDate(e.target.value)}
+                    onChange={setDisplacementDate}
+                    placeholder={tEdit.displacementDateLabel}
                     disabled={isPending}
                   />
                 </div>
@@ -444,10 +582,18 @@ export function DisplacedEditDialog({
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Button type="button" variant="outline" size="sm" asChild>
-                        <a href={url} target="_blank" rel="noopener noreferrer">
-                          {tEdit.viewId}
-                        </a>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setViewerTitle(
+                            fill(tEdit.documentLabel, { index: index + 1 }),
+                          );
+                          setViewerUrl(url);
+                        }}
+                      >
+                        {tEdit.viewId}
                       </Button>
                       <Button
                         type="button"
@@ -517,6 +663,13 @@ export function DisplacedEditDialog({
         </form>
 
       </div>
+
+      <DocumentViewerDialog
+        dict={dict}
+        url={viewerUrl}
+        title={viewerTitle}
+        onClose={() => setViewerUrl(null)}
+      />
     </div>
   );
 }

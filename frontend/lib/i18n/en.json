@@ -2,6 +2,9 @@
   "common": {
     "appName": "Albazourieh Recovery Platform",
     "back": "Back",
+    "backToMain": "Back to Main Page",
+    "close": "Close",
+    "openInNewTab": "Open in new tab",
     "next": "Next",
     "submit": "Submit report",
     "loading": "Loading…",
@@ -18,7 +21,17 @@
     "switchLanguage": "العربية",
     "trackExisting": "Track an existing report",
     "displacedHeading": "Displacement registration",
-    "displacedHint": "Are you a displaced household? Register to request municipal assistance."
+    "displacedHint": "Are you a displaced household? Register to request municipal assistance.",
+    "hub": {
+      "title": "Al Bazourieh Municipality Services",
+      "subtitle": "Choose a service to get started.",
+      "warDamagesTitle": "Report war damage",
+      "warDamagesDesc": "Report damage to your home, land, vehicle or shop.",
+      "lebaneseTitle": "Lebanese displaced registration",
+      "lebaneseDesc": "For Lebanese households displaced within the country.",
+      "syrianTitle": "Syrian refugee registration",
+      "syrianDesc": "For displaced Syrian households seeking assistance."
+    }
   },
   "modules": {
     "title": "Platform sections",
@@ -317,6 +330,8 @@
       "DELETE_STAFF": "Revoked staff account",
       "UPDATE_REPORT_STATUS": "Changed report status",
       "UPDATE_DISPLACED_STATUS": "Changed displaced status",
+      "UPDATE_DISPLACED_REGISTRATION": "Edited displaced registration",
+      "VIEW_DISPLACED_RECORD": "Viewed displaced record",
       "EDIT_REPORT_DATA": "Edited report data",
       "EXPORT_DATA": "Exported data"
     },
@@ -416,6 +431,18 @@
       "familyMembersLabel": "Number of family members",
       "familyMembersNamesLabel": "Names of all family members",
       "familyMembersNamesPlaceholder": "List the full name of each family member...",
+      "alternatePhoneLabel": "Alternate phone",
+      "vulnerabilityLabel": "Vulnerability status",
+      "locationSection": "Current location",
+      "governorateLabel": "Current governorate",
+      "governoratePlaceholder": "Choose the governorate…",
+      "districtLabel": "District / City",
+      "districtPlaceholder": "Example: Tyre",
+      "neighborhoodLabel": "Neighborhood",
+      "neighborhoodPlaceholder": "Example: Al Bazourieh",
+      "buildingLabel": "Building name / number",
+      "buildingPlaceholder": "Example: Al Salam building",
+      "landlordPhoneLabel": "Landlord's phone number",
       "registrationNumberLabel": "UNHCR / registration number",
       "registrationNumberHint": "Leave empty if not registered",
       "shelterTypeLabel": "Current housing type",
@@ -435,11 +462,17 @@
       "errors": {
         "fullNameRequired": "Please enter the full name (at least 3 characters)",
         "invalidPhone": "Please enter a valid phone number",
+        "invalidAlternatePhone": "Please enter a valid alternate phone number",
         "familyMembersRequired": "Please enter the number of family members (1–50)",
         "familyMembersNamesRequired": "Please list the names of all family members",
-        "originRequired": "Please enter the place of origin",
+        "neighborhoodRequired": "Please enter the neighborhood",
+        "buildingRequired": "Please enter the building name or number",
         "shelterTypeRequired": "Please choose the housing type",
+        "shelterContactNameRequired": "Please enter the contact person's name",
+        "shelterContactPhoneRequired": "Please enter a valid contact phone number",
+        "originRequired": "Please enter the place of origin",
         "dateRequired": "Please choose a valid date (not in the future)",
+        "needsRequired": "Please select at least one urgent need",
         "idRequired": "Please attach a photo of an identifying document",
         "fileTooLarge": "This file is too large. Please attach a file smaller than 4MB."
       }
@@ -448,24 +481,42 @@
       "FOOD": "Food",
       "MEDICAL": "Medical",
       "SHELTER": "Shelter",
-      "CASH": "Cash"
+      "CASH": "Cash",
+      "WINTERIZATION": "Winterization"
+    },
+    "vulnerabilities": {
+      "PREGNANT_LACTATING": "Pregnant / Lactating",
+      "CHRONIC_ILLNESS": "Chronic illness",
+      "DISABILITY": "Disability"
     },
     "shelterTypes": {
-      "RENTED_APARTMENT": "Rented apartment",
-      "HOSTED_WITH_FAMILY": "Hosted with family",
-      "COLLECTIVE_SHELTER": "Collective shelter",
-      "TENT_OR_CAMP": "Tent / camp",
-      "OTHER": "Other"
+      "RENTAL": "Rental",
+      "COLLECTIVE_CENTER": "Collective center",
+      "INFORMAL_SETTLEMENT": "Informal settlement",
+      "HOST_FAMILY": "With host family",
+      "PUBLIC_SHELTER": "Collective center"
     },
-    "governorates": {
-      "BEIRUT": "Beirut",
-      "MOUNT_LEBANON": "Mount Lebanon",
-      "NORTH": "North",
-      "AKKAR": "Akkar",
-      "BEKAA": "Bekaa",
-      "BAALBEK_HERMEL": "Baalbek-Hermel",
-      "SOUTH": "South",
-      "NABATIEH": "Nabatieh"
+    "shelterContact": {
+      "RENTAL": {
+        "nameLabel": "Rental owner's name",
+        "phoneLabel": "Rental owner's phone"
+      },
+      "COLLECTIVE_CENTER": {
+        "nameLabel": "Center name / manager",
+        "phoneLabel": "Center phone"
+      },
+      "INFORMAL_SETTLEMENT": {
+        "nameLabel": "Contact name",
+        "phoneLabel": "Contact phone"
+      },
+      "HOST_FAMILY": {
+        "nameLabel": "Host family member's name",
+        "phoneLabel": "Host family member's phone"
+      },
+      "PUBLIC_SHELTER": {
+        "nameLabel": "Center name / manager",
+        "phoneLabel": "Center phone"
+      }
     },
     "status": {
       "PENDING": "Pending",
@@ -507,6 +558,7 @@
         "membersShort": "{count} member(s)",
         "governorate": "Governorate",
         "origin": "Origin",
+        "location": "Current location",
         "shelter": "Housing",
         "registrationNumber": "Reg. №",
         "unregistered": "Unregistered",
@@ -524,6 +576,7 @@
         "date": "Registered",
         "actions": "Actions",
         "edit": "Edit",
+        "view": "View",
         "approve": "Approve",
         "reject": "Reject",
         "backToPending": "Back to pending",
@@ -540,6 +593,13 @@
         "next": "Next",
         "totalRows": "{count} registration(s)",
         "rowsPerPage": "Rows per page"
+      },
+      "viewDialog": {
+        "title": "Registration Details",
+        "close": "Close",
+        "edit": "Edit Registration",
+        "notProvided": "Not provided",
+        "notFound": "This registration could not be found."
       },
       "editDialog": {
         "title": "Edit Registration Details",

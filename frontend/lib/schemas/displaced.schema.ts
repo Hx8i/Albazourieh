@@ -14,56 +14,90 @@ export type DisplacedAudience = 'syrian' | 'lebanese';
 export type DisplacedStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 /** Multi-select urgent-needs checklist offered on both intake forms. */
-export type UrgentNeed = 'FOOD' | 'MEDICAL' | 'SHELTER' | 'CASH';
+export type UrgentNeed = 'FOOD' | 'MEDICAL' | 'SHELTER' | 'CASH' | 'WINTERIZATION';
 
 export const URGENT_NEEDS: readonly UrgentNeed[] = [
   'FOOD',
   'MEDICAL',
   'SHELTER',
   'CASH',
+  'WINTERIZATION',
 ];
 
-/** Where a displaced Syrian household currently lives. */
-export type ShelterType =
-  | 'RENTED_APARTMENT'
-  | 'HOSTED_WITH_FAMILY'
-  | 'COLLECTIVE_SHELTER'
-  | 'TENT_OR_CAMP'
-  | 'OTHER';
+/** Optional vulnerability flags, applicable to both programmes. */
+export type Vulnerability =
+  | 'PREGNANT_LACTATING'
+  | 'CHRONIC_ILLNESS'
+  | 'DISABILITY';
 
-export const SHELTER_TYPES: readonly ShelterType[] = [
-  'RENTED_APARTMENT',
-  'HOSTED_WITH_FAMILY',
-  'COLLECTIVE_SHELTER',
-  'TENT_OR_CAMP',
-  'OTHER',
+export const VULNERABILITIES: readonly Vulnerability[] = [
+  'PREGNANT_LACTATING',
+  'CHRONIC_ILLNESS',
+  'DISABILITY',
 ];
+
+/**
+ * Shelter type differs per programme. Every value except INFORMAL_SETTLEMENT
+ * requires a shelter contact (name + phone).
+ */
+export type SyrianShelterType =
+  | 'RENTAL'
+  | 'COLLECTIVE_CENTER'
+  | 'INFORMAL_SETTLEMENT';
+
+export const SYRIAN_SHELTER_TYPES: readonly SyrianShelterType[] = [
+  'RENTAL',
+  'COLLECTIVE_CENTER',
+  'INFORMAL_SETTLEMENT',
+];
+
+export type LebaneseShelterType = 'RENTAL' | 'HOST_FAMILY' | 'PUBLIC_SHELTER';
+
+export const LEBANESE_SHELTER_TYPES: readonly LebaneseShelterType[] = [
+  'RENTAL',
+  'HOST_FAMILY',
+  'PUBLIC_SHELTER',
+];
+
+/** Union of both audiences' shelter values (for display-map lookups). */
+export type ShelterType = SyrianShelterType | LebaneseShelterType;
+
+/** The one shelter value that does NOT collect a contact name + phone. */
+export const SHELTER_WITHOUT_CONTACT: ShelterType = 'INFORMAL_SETTLEMENT';
 
 // ───────────────────────── Intake payloads ────────────────────────
 
-export interface CreateSyrianDisplacedPayload {
+/** Fields both intake forms submit identically. */
+interface CreateDisplacedPayloadBase {
   fullName: string;
   phone: string;
+  alternatePhone?: string;
   familyMembersCount: number;
   familyMembersNames: string;
+  neighborhoodName: string;
+  buildingName: string;
+  /** Contact person for the shelter; required unless INFORMAL_SETTLEMENT. */
+  shelterContactName?: string;
+  shelterContactPhone?: string;
+  urgentNeeds: UrgentNeed[];
+  vulnerabilityStatus: Vulnerability[];
+}
+
+export interface CreateSyrianDisplacedPayload extends CreateDisplacedPayloadBase {
+  shelterType: SyrianShelterType;
   originalCity: string;
   /** UNHCR / government registration number — omitted when unregistered. */
   registrationNumber?: string;
-  shelterType: ShelterType;
-  urgentNeeds: UrgentNeed[];
   /** "YYYY-MM-DD" — date the household entered Lebanon. */
   entryDate: string;
 }
 
-export interface CreateLebaneseDisplacedPayload {
-  fullName: string;
-  phone: string;
-  familyMembersCount: number;
-  familyMembersNames: string;
+export interface CreateLebaneseDisplacedPayload
+  extends CreateDisplacedPayloadBase {
+  shelterType: LebaneseShelterType;
   originVillage: string;
   isPropertyDamaged: boolean;
   primarySourceOfIncome?: string;
-  urgentNeeds: UrgentNeed[];
   /** "YYYY-MM-DD" — date the household was displaced. */
   displacementDate: string;
 }
@@ -74,9 +108,15 @@ interface DisplacedItemBase {
   id: string;
   fullName: string;
   phone: string;
+  alternatePhone: string | null;
   familyMembersCount: number;
   familyMembersNames: string;
+  neighborhoodName: string;
+  buildingName: string;
+  shelterContactName: string | null;
+  shelterContactPhone: string | null;
   urgentNeeds: UrgentNeed[];
+  vulnerabilityStatus: Vulnerability[];
   /** Identity document(s) (photo or PDF) proving who registered. */
   idDocumentUrls: string[];
   status: DisplacedStatus;
@@ -85,14 +125,15 @@ interface DisplacedItemBase {
 }
 
 export interface SyrianDisplacedItem extends DisplacedItemBase {
+  shelterType: SyrianShelterType;
   originalCity: string;
   registrationNumber: string | null;
-  shelterType: ShelterType;
   /** ISO-8601 date the household entered Lebanon. */
   entryDate: string;
 }
 
 export interface LebaneseDisplacedItem extends DisplacedItemBase {
+  shelterType: LebaneseShelterType;
   originVillage: string;
   isPropertyDamaged: boolean;
   primarySourceOfIncome: string | null;

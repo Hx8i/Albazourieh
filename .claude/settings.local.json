@@ -13,7 +13,19 @@
       "Bash(curl -s https://basemaps.cartocdn.com/gl/positron-gl-style/style.json -o /tmp/positron.json)",
       "Bash(node -e ' *)",
       "Bash(node -e \"console.log\\(require.resolve\\('@types/geojson/package.json'\\)\\)\")",
-      "Bash(pnpm add *)"
+      "Bash(pnpm add *)",
+      "Bash(cd \"c:/Users/TD/OneDrive/Desktop/Albazourieh/frontend\" && grep -n \"popover\" app/globals.css tailwind.config.ts | head -6 && echo \"=== edit dialog date blocks ===\" && sed -n '488,535p' components/displaced/DisplacedEditDialog.tsx && echo \"=== updateSyrian audit details \\(service\\) ===\" && grep -n \"Updated Syrian registration\\\\|Updated Lebanese registration\" ../backend/src/displaced/displaced.service.ts)",
+      "Read(//c/Users/TD/OneDrive/Desktop/backend/src/displaced/**)",
+      "Bash(grep -n \"DisplacedEditDialog$\\\\|<DisplacedEditDialog\" components/displaced/DisplacedDashboard.tsx)",
+      "Bash(PORT=4005 node --env-file=.env dist/main.js)",
+      "Bash(curl -s -o /dev/null \"http://localhost:4005/api/v1/health\")",
+      "Bash(node \"C:/Users/TD/AppData/Local/Temp/claude/c--Users-TD-OneDrive-Desktop-Albazourieh/c7f8c111-be60-4f8c-93f5-65f383850b77/scratchpad/verify-audit-view.mjs\")",
+      "Bash(rm -f \"C:/Users/TD/AppData/Local/Temp/claude/c--Users-TD-OneDrive-Desktop-Albazourieh/c7f8c111-be60-4f8c-93f5-65f383850b77/scratchpad/verify-audit-view.mjs\")",
+      "Bash(node --env-file=.env -e ' *)",
+      "Bash(netstat -ano)",
+      "Bash(rm components/displaced/DisplacedDetailDialog.tsx)",
+      "Bash(pnpm build *)",
+      "Bash(PORT=4006 node --env-file=.env dist/main.js)"
     ]
   }
 }

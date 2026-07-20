@@ -123,6 +123,23 @@ export class DisplacedService {
     return this.repository.listLebanese(toFilter(query));
   }
 
+  /** Single registration for the staff detail page. */
+  async getSyrianById(id: string): Promise<SyrianDisplaced> {
+    const existing = await this.repository.findSyrianById(id);
+    if (!existing) {
+      throw new DisplacedRegistrationNotFoundError(id);
+    }
+    return existing;
+  }
+
+  async getLebaneseById(id: string): Promise<LebaneseDisplaced> {
+    const existing = await this.repository.findLebaneseById(id);
+    if (!existing) {
+      throw new DisplacedRegistrationNotFoundError(id);
+    }
+    return existing;
+  }
+
   /** Metric cards + chart aggregates — cached, busted on every write. */
   async getSummary(audience: DisplacedAudience): Promise<DisplacedSummary> {
     return this.cache.getOrSet(
@@ -180,6 +197,16 @@ export class DisplacedService {
       entryDate: entryDate ? toCalendarDate(entryDate) : undefined,
     };
 
+    // Field-level bilingual diff captured BEFORE persisting, so the trail
+    // records exactly what changed (old → new) in both languages.
+    const { detailsEn, detailsAr } = buildDisplacedAuditDetails(
+      reviewer.name,
+      AUDIENCE_LABEL.SYRIAN,
+      existing as unknown as Record<string, unknown>,
+      dto as Record<string, unknown>,
+      existing.fullName,
+    );
+
     const updated = await this.repository.updateSyrian(id, data);
 
     await this.audit.record({
@@ -187,8 +214,8 @@ export class DisplacedService {
       adminName: reviewer.name,
       actionType: 'UPDATE_DISPLACED_REGISTRATION',
       targetId: id,
-      details: `Updated Syrian registration for "${existing.fullName}"`,
-      detailsAr: `تحديث تسجيل النازح السوري "${existing.fullName}"`,
+      details: detailsEn,
+      detailsAr,
       ipAddress: reviewer.ipAddress,
     });
 
@@ -212,6 +239,14 @@ export class DisplacedService {
       displacementDate: displacementDate ? toCalendarDate(displacementDate) : undefined,
     };
 
+    const { detailsEn, detailsAr } = buildDisplacedAuditDetails(
+      reviewer.name,
+      AUDIENCE_LABEL.LEBANESE,
+      existing as unknown as Record<string, unknown>,
+      dto as Record<string, unknown>,
+      existing.fullName,
+    );
+
     const updated = await this.repository.updateLebanese(id, data);
 
     await this.audit.record({
@@ -219,8 +254,8 @@ export class DisplacedService {
       adminName: reviewer.name,
       actionType: 'UPDATE_DISPLACED_REGISTRATION',
       targetId: id,
-      details: `Updated Lebanese registration for "${existing.fullName}"`,
-      detailsAr: `تحديث تسجيل النازح اللبناني "${existing.fullName}"`,
+      details: detailsEn,
+      detailsAr,
       ipAddress: reviewer.ipAddress,
     });
 
@@ -322,6 +357,35 @@ export class DisplacedService {
     return updated.idDocumentUrls;
   }
 
+  /**
+   * Trail entry for a staff member opening a registration's detail view.
+   * Read-only — no cache invalidation, nothing mutated.
+   */
+  async recordView(
+    audience: DisplacedAudience,
+    id: string,
+    reviewer: ActingReviewer,
+  ): Promise<void> {
+    const existing =
+      audience === 'SYRIAN'
+        ? await this.repository.findSyrianById(id)
+        : await this.repository.findLebaneseById(id);
+    if (!existing) {
+      throw new DisplacedRegistrationNotFoundError(id);
+    }
+
+    const label = AUDIENCE_LABEL[audience];
+    await this.audit.record({
+      adminId: reviewer.id,
+      adminName: reviewer.name,
+      actionType: 'VIEW_DISPLACED_RECORD',
+      targetId: id,
+      details: `Viewed ${label.en} record "${existing.fullName}"`,
+      detailsAr: `اطّلع على سجل ${label.ar} "${existing.fullName}"`,
+      ipAddress: reviewer.ipAddress,
+    });
+  }
+
   private async recordStatusAudit(
     audience: DisplacedAudience,
     existing: SyrianDisplaced | LebaneseDisplaced,
@@ -354,4 +418,99 @@ function toFilter(query: ListDisplacedQueryDto) {
 
 function toCalendarDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
+}
+
+// ────────────────── Dual-language diff engine ──────────────────
+// Mirrors the war-damages audit pattern (damage-report.service.ts):
+// every changed field is written to the trail as
+// "updated <label> from 'old' to 'new'" in both English and Arabic.
+
+/** Human-readable field labels for the displaced audit trail (EN / AR). */
+const DISPLACED_FIELD_LABELS: Record<string, { en: string; ar: string }> = {
+  fullName: { en: 'Full Name', ar: 'الاسم الكامل' },
+  phone: { en: 'Phone Number', ar: 'رقم الهاتف' },
+  alternatePhone: { en: 'Alternate Phone', ar: 'رقم الهاتف البديل' },
+  familyMembersCount: { en: 'Family Members Count', ar: 'عدد أفراد الأسرة' },
+  familyMembersNames: { en: 'Family Members Names', ar: 'أسماء أفراد الأسرة' },
+  neighborhoodName: { en: 'Neighborhood', ar: 'الحي' },
+  buildingName: { en: 'Building', ar: 'المبنى' },
+  shelterType: { en: 'Housing Type', ar: 'نوع السكن' },
+  shelterContactName: { en: 'Shelter Contact Name', ar: 'اسم جهة التواصل للسكن' },
+  shelterContactPhone: { en: 'Shelter Contact Phone', ar: 'هاتف جهة التواصل للسكن' },
+  originalCity: { en: 'City of Origin', ar: 'المدينة الأصلية' },
+  originVillage: { en: 'Village of Origin', ar: 'قرية الأصل' },
+  registrationNumber: { en: 'Registration Number', ar: 'رقم التسجيل' },
+  isPropertyDamaged: { en: 'Property Damaged', ar: 'تضرر العقار' },
+  primarySourceOfIncome: { en: 'Primary Source of Income', ar: 'مصدر الدخل الأساسي' },
+  entryDate: { en: 'Date of Entry', ar: 'تاريخ الدخول' },
+  displacementDate: { en: 'Displacement Date', ar: 'تاريخ النزوح' },
+  urgentNeeds: { en: 'Urgent Needs', ar: 'الاحتياجات العاجلة' },
+  vulnerabilityStatus: { en: 'Vulnerability Status', ar: 'حالة الهشاشة' },
+  status: { en: 'Status', ar: 'الحالة' },
+};
+
+/** Normalises any stored/incoming value to a bilingual display string. */
+function displayValue(value: unknown): { en: string; ar: string } {
+  if (value === null || value === undefined || value === '') {
+    return { en: '—', ar: '—' };
+  }
+  if (value instanceof Date) {
+    const iso = value.toISOString().slice(0, 10);
+    return { en: iso, ar: iso };
+  }
+  if (Array.isArray(value)) {
+    const joined = value.join(', ') || '—';
+    return { en: joined, ar: joined };
+  }
+  if (typeof value === 'boolean') {
+    return { en: value ? 'yes' : 'no', ar: value ? 'نعم' : 'لا' };
+  }
+  return { en: String(value), ar: String(value) };
+}
+
+/** Two values compare equal when their display forms match. */
+function sameValue(a: unknown, b: unknown): boolean {
+  return displayValue(a).en === displayValue(b).en;
+}
+
+/**
+ * Composes the bilingual trail message for a partial registration update:
+ * one "updated X from 'a' to 'b'" fragment per genuinely-changed field,
+ * or an explicit "no changes" line when the save was a no-op.
+ */
+function buildDisplacedAuditDetails(
+  adminName: string,
+  audienceLabel: { en: string; ar: string },
+  existing: Record<string, unknown>,
+  dto: Record<string, unknown>,
+  fullName: string,
+): { detailsEn: string; detailsAr: string } {
+  const fragmentsEn: string[] = [];
+  const fragmentsAr: string[] = [];
+
+  for (const [key, labels] of Object.entries(DISPLACED_FIELD_LABELS)) {
+    const incoming = dto[key];
+    if (incoming === undefined) continue;
+    if (sameValue(existing[key], incoming)) continue;
+    const before = displayValue(existing[key]);
+    const after = displayValue(incoming);
+    fragmentsEn.push(
+      `updated ${labels.en} from '${before.en}' to '${after.en}'`,
+    );
+    fragmentsAr.push(
+      `عدّل ${labels.ar} من '${before.ar}' إلى '${after.ar}'`,
+    );
+  }
+
+  if (fragmentsEn.length === 0) {
+    return {
+      detailsEn: `Staff ${adminName} saved ${audienceLabel.en} record "${fullName}" with no changes.`,
+      detailsAr: `حفظ الموظف ${adminName} سجل ${audienceLabel.ar} "${fullName}" دون تغييرات.`,
+    };
+  }
+
+  return {
+    detailsEn: `Staff ${adminName} — ${audienceLabel.en} "${fullName}": ${fragmentsEn.join(' and ')}.`,
+    detailsAr: `الموظف ${adminName} — ${audienceLabel.ar} "${fullName}": ${fragmentsAr.join(' و')}.`,
+  };
 }

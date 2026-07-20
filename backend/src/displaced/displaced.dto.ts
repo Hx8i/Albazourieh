@@ -8,18 +8,44 @@ export const displacedStatusSchema = z.enum(['PENDING', 'APPROVED', 'REJECTED'])
 export type DisplacedStatus = z.infer<typeof displacedStatusSchema>;
 
 /** Multi-select urgent-needs checklist offered on both intake forms. */
-export const urgentNeedSchema = z.enum(['FOOD', 'MEDICAL', 'SHELTER', 'CASH']);
+export const urgentNeedSchema = z.enum([
+  'FOOD',
+  'MEDICAL',
+  'SHELTER',
+  'CASH',
+  'WINTERIZATION',
+]);
 export type UrgentNeed = z.infer<typeof urgentNeedSchema>;
 
-/** Where a displaced Syrian household currently lives. */
-export const shelterTypeSchema = z.enum([
-  'RENTED_APARTMENT',
-  'HOSTED_WITH_FAMILY',
-  'COLLECTIVE_SHELTER',
-  'TENT_OR_CAMP',
-  'OTHER',
+/** Optional vulnerability flags, applicable to both programmes. */
+export const vulnerabilitySchema = z.enum([
+  'PREGNANT_LACTATING',
+  'CHRONIC_ILLNESS',
+  'DISABILITY',
 ]);
-export type ShelterType = z.infer<typeof shelterTypeSchema>;
+export type Vulnerability = z.infer<typeof vulnerabilitySchema>;
+
+/**
+ * Shelter type differs by programme, so each audience carries its own
+ * enum. Every value except INFORMAL_SETTLEMENT requires a shelter
+ * contact (name + phone) — see `requireShelterContact`.
+ */
+export const syrianShelterTypeSchema = z.enum([
+  'RENTAL',
+  'COLLECTIVE_CENTER',
+  'INFORMAL_SETTLEMENT',
+]);
+export type SyrianShelterType = z.infer<typeof syrianShelterTypeSchema>;
+
+export const lebaneseShelterTypeSchema = z.enum([
+  'RENTAL',
+  'HOST_FAMILY',
+  'PUBLIC_SHELTER',
+]);
+export type LebaneseShelterType = z.infer<typeof lebaneseShelterTypeSchema>;
+
+/** The only shelter value that does NOT require a contact name + phone. */
+const SHELTER_WITHOUT_CONTACT = 'INFORMAL_SETTLEMENT';
 
 // ─────────────────────────── Building blocks ─────────────────────────
 
@@ -32,6 +58,9 @@ const phoneNumberSchema = z
 const fullNameSchema = z.string().trim().min(3).max(120);
 
 const placeNameSchema = z.string().trim().min(2).max(120);
+
+/** A required free-text location part (district, neighborhood, building). */
+const locationPartSchema = z.string().trim().min(2).max(120);
 
 const familyMembersCountSchema = z
   .number({ invalid_type_error: 'Family members count must be a number' })
@@ -53,61 +82,132 @@ const calendarDateSchema = z
     return parsed.getTime() <= Date.now();
   }, 'Date must be a valid day that is not in the future');
 
-/** De-duplicated urgent-needs selection; an empty list is allowed. */
+/** De-duplicated urgent-needs selection — at least one need is required. */
 const urgentNeedsSchema = z
   .array(urgentNeedSchema)
-  .max(4)
-  .default([])
+  .min(1, 'Select at least one urgent need')
+  .max(5)
   .transform((needs) => [...new Set(needs)]);
 
-// ───────────────────────── Intake submissions ────────────────────────
+/** De-duplicated vulnerability flags; the whole list is optional. */
+const vulnerabilitySelectionSchema = z
+  .array(vulnerabilitySchema)
+  .max(3)
+  .default([])
+  .transform((flags) => [...new Set(flags)]);
 
-export const createSyrianDisplacedSchema = z
+// ───────────────────────── Intake submissions ────────────────────────
+//
+// Fields shared by both programmes. Audience-specific shelter/origin/date
+// fields are merged per schema below. The shelter contact (name + phone)
+// is conditionally required (see `requireShelterContact`).
+
+const sharedIntakeFields = {
+  fullName: fullNameSchema,
+  phone: phoneNumberSchema,
+  /** Emergency fallback contact — optional. */
+  alternatePhone: phoneNumberSchema.optional(),
+  familyMembersCount: familyMembersCountSchema,
+  familyMembersNames: z.string().trim().min(3).max(1000),
+  neighborhoodName: locationPartSchema,
+  buildingName: locationPartSchema,
+  /**
+   * Shelter contact — the rental owner, collective-centre manager or host
+   * family member depending on shelterType. Required unless the shelter is
+   * an informal settlement (see refinement).
+   */
+  shelterContactName: z.string().trim().min(2).max(120).optional(),
+  shelterContactPhone: phoneNumberSchema.optional(),
+  urgentNeeds: urgentNeedsSchema,
+  vulnerabilityStatus: vulnerabilitySelectionSchema,
+};
+
+/**
+ * Every shelter type except an informal settlement must name a contact
+ * person and their phone. Applied on create (the whole record is present);
+ * relaxed on partial updates so editing one field never fails for not
+ * resending an already-stored contact.
+ */
+function requireShelterContact(
+  value: { shelterType?: string; shelterContactName?: string; shelterContactPhone?: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (!value.shelterType || value.shelterType === SHELTER_WITHOUT_CONTACT) {
+    return;
+  }
+  if (!value.shelterContactName) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['shelterContactName'],
+      message: 'A contact name is required for this housing type',
+    });
+  }
+  if (!value.shelterContactPhone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['shelterContactPhone'],
+      message: 'A contact phone number is required for this housing type',
+    });
+  }
+}
+
+const syrianIntakeObject = z
   .object({
-    fullName: fullNameSchema,
-    phone: phoneNumberSchema,
-    familyMembersCount: familyMembersCountSchema,
-    familyMembersNames: z.string().trim().min(3).max(1000),
+    ...sharedIntakeFields,
+    shelterType: syrianShelterTypeSchema,
+    /** City/town of origin in Syria. */
     originalCity: placeNameSchema,
     /** UNHCR / government registration number — omitted when unregistered. */
     registrationNumber: z.string().trim().min(2).max(60).optional(),
-    shelterType: shelterTypeSchema,
-    urgentNeeds: urgentNeedsSchema,
     entryDate: calendarDateSchema,
   })
   .strict();
+
+export const createSyrianDisplacedSchema =
+  syrianIntakeObject.superRefine(requireShelterContact);
 
 export type CreateSyrianDisplacedDto = z.infer<
   typeof createSyrianDisplacedSchema
 >;
 
-export const createLebaneseDisplacedSchema = z
+const lebaneseIntakeObject = z
   .object({
-    fullName: fullNameSchema,
-    phone: phoneNumberSchema,
-    familyMembersCount: familyMembersCountSchema,
-    familyMembersNames: z.string().trim().min(3).max(1000),
+    ...sharedIntakeFields,
+    shelterType: lebaneseShelterTypeSchema,
+    /** Village of origin in Lebanon. */
     originVillage: placeNameSchema,
     isPropertyDamaged: z.boolean(),
     primarySourceOfIncome: z.string().trim().min(2).max(120).optional(),
-    urgentNeeds: urgentNeedsSchema,
     displacementDate: calendarDateSchema,
   })
   .strict();
+
+export const createLebaneseDisplacedSchema =
+  lebaneseIntakeObject.superRefine(requireShelterContact);
 
 export type CreateLebaneseDisplacedDto = z.infer<
   typeof createLebaneseDisplacedSchema
 >;
 
-export const updateSyrianDisplacedSchema = createSyrianDisplacedSchema.partial().extend({
-  status: displacedStatusSchema.optional(),
-}).strict();
-export type UpdateSyrianDisplacedDto = z.infer<typeof updateSyrianDisplacedSchema>;
+// Updates are partial (staff edit any subset) and carry an optional status.
+// The landlord rule isn't re-checked here: an edit that changes only, say,
+// the phone must not fail because it didn't resend an already-stored
+// landlordPhone — the create path already guaranteed the invariant.
+export const updateSyrianDisplacedSchema = syrianIntakeObject
+  .partial()
+  .extend({ status: displacedStatusSchema.optional() })
+  .strict();
+export type UpdateSyrianDisplacedDto = z.infer<
+  typeof updateSyrianDisplacedSchema
+>;
 
-export const updateLebaneseDisplacedSchema = createLebaneseDisplacedSchema.partial().extend({
-  status: displacedStatusSchema.optional(),
-}).strict();
-export type UpdateLebaneseDisplacedDto = z.infer<typeof updateLebaneseDisplacedSchema>;
+export const updateLebaneseDisplacedSchema = lebaneseIntakeObject
+  .partial()
+  .extend({ status: displacedStatusSchema.optional() })
+  .strict();
+export type UpdateLebaneseDisplacedDto = z.infer<
+  typeof updateLebaneseDisplacedSchema
+>;
 
 // ───────────────────────── List query (dashboard) ────────────────────
 

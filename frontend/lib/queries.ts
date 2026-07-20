@@ -14,6 +14,7 @@ import {
   MultipartFilesInput,
   SpatialParams,
   createStaff,
+  getDisplacedById,
   getDisplacedSummary,
   getReportById,
   getReportsSummary,
@@ -23,6 +24,7 @@ import {
   listLebaneseDisplaced,
   listStaff,
   listSyrianDisplaced,
+  logDisplacedRecordView,
   logExportEvent,
   removeStaff,
   staffLogin,
@@ -86,6 +88,8 @@ export const queryKeys = {
       ['displaced', audience, 'list', params] as const,
     summary: (audience: DisplacedAudience) =>
       ['displaced', audience, 'summary'] as const,
+    detail: (audience: DisplacedAudience, id: string) =>
+      ['displaced', audience, 'detail', id] as const,
   },
 } as const;
 
@@ -395,6 +399,31 @@ export function useUpdateLebaneseDisplacedMutation() {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.displaced.all('lebanese'),
       });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
+    },
+  });
+}
+
+/**
+ * One registration for the staff detail page. Lives under the audience
+ * prefix, so every displaced mutation's invalidation refreshes it too.
+ */
+export function useDisplacedDetailQuery(
+  audience: DisplacedAudience,
+  id: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.displaced.detail(audience, id),
+    queryFn: () => unwrap(getDisplacedById(audience, id)),
+  });
+}
+
+/** Fire-and-forget trail entry when a detail view opens. */
+export function useLogDisplacedViewMutation(audience: DisplacedAudience) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unwrap(logDisplacedRecordView(audience, id)),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
     },
   });

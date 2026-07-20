@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import * as React from 'react';
+import { BackToMainLink } from '@/components/BackToMainLink';
 import { DisplacedIntakeForm } from '@/components/displaced/DisplacedIntakeForm';
 import { getDictionary, isLocale } from '@/lib/i18n/dictionaries';
 
@@ -16,7 +17,8 @@ export default async function LebaneseFormPage({
   const dict = getDictionary(locale);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <BackToMainLink dict={dict} locale={locale} />
       <div className="text-center">
         <h1 className="text-3xl font-bold">
           {dict.displaced.lebanese.formTitle}

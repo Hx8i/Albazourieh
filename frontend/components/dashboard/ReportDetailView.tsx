@@ -23,6 +23,7 @@ import {
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DocumentViewerDialog } from "@/components/DocumentViewerDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -154,6 +155,9 @@ export function ReportDetailView({
     : null;
 
   const [actionError, setActionError] = React.useState<string | null>(null);
+  // In-site preview for photos and documents.
+  const [viewerUrl, setViewerUrl] = React.useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = React.useState("");
   const [rejecting, setRejecting] = React.useState(false);
   const [rejectReason, setRejectReason] = React.useState("");
   const [rejectField, setRejectField] = React.useState("");
@@ -398,11 +402,16 @@ export function ReportDetailView({
 
   const attachmentTile = (attachment: Attachment): React.JSX.Element => (
     <div key={attachment.id} className="group relative space-y-1">
-      <a
-        href={attachment.url}
-        target="_blank"
-        rel="noreferrer"
-        className="block"
+      {/* Opens the in-site lightbox instead of leaving the page. */}
+      <button
+        type="button"
+        onClick={() => {
+          setViewerTitle(
+            attachmentCaption(attachment) ?? report?.referenceCode ?? "",
+          );
+          setViewerUrl(attachment.url);
+        }}
+        className="block w-full text-start"
       >
         <span className="relative block aspect-square overflow-hidden rounded-lg border bg-muted">
           {isPdf(attachment) ? (
@@ -424,7 +433,7 @@ export function ReportDetailView({
             {attachmentCaption(attachment)}
           </span>
         ) : null}
-      </a>
+      </button>
       {isEditing ? (
         <button
           type="button"
@@ -1124,6 +1133,13 @@ export function ReportDetailView({
           )}
         </div>
       </div>
+
+      <DocumentViewerDialog
+        dict={dict}
+        url={viewerUrl}
+        title={viewerTitle}
+        onClose={() => setViewerUrl(null)}
+      />
     </div>
   );
 }

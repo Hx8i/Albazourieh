@@ -1,9 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { ColumnDef, PaginationState, SortingState } from '@tanstack/react-table';
 import {
+  Eye,
   FileText,
   ImageOff,
   RefreshCw,
@@ -36,7 +38,7 @@ import {
   SyrianDisplacedItem,
 } from '@/lib/schemas/displaced.schema';
 import { NeedsBarChart } from './DisplacedCharts';
-import { DisplacedEditDialog } from './DisplacedEditDialog';
+import { DocumentViewerDialog } from '@/components/DocumentViewerDialog';
 
 const ALL = 'ALL';
 const CELL_PADDING = 'py-3';
@@ -82,7 +84,9 @@ export function DisplacedDashboard({
   const tAudience = audience === 'syrian' ? t.syrian : t.lebanese;
   const queryClient = useQueryClient();
 
-  const [editingItem, setEditingItem] = React.useState<DisplacedItem | null>(null);
+  // In-site preview for the expanded ID-document sub-rows.
+  const [viewerUrl, setViewerUrl] = React.useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<string>(ALL);
   const [search, setSearch] = React.useState('');
   const [sorting, setSorting] = React.useState<SortingState>([
@@ -231,6 +235,23 @@ export function DisplacedDashboard({
           );
         },
       },
+      {
+        id: 'location',
+        header: tDash.table.location,
+        enableSorting: false,
+        meta: { headerClassName: 'min-w-[160px]', cellClassName: CELL_PADDING },
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium">{row.original.neighborhoodName}</p>
+            <p
+              className="max-w-[180px] truncate text-xs text-muted-foreground"
+              title={row.original.buildingName}
+            >
+              {row.original.buildingName}
+            </p>
+          </div>
+        ),
+      },
       audience === 'syrian'
         ? {
             id: 'shelter',
@@ -361,13 +382,12 @@ export function DisplacedDashboard({
           const item = row.original;
           return (
             <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setEditingItem(item)}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                {tDash.table.edit}
+              {/* Case-file page hosts viewing AND editing (war-damages pattern). */}
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/${locale}/admin/${audience}/${item.id}`}>
+                  <Eye className="h-3.5 w-3.5" />
+                  {tDash.table.view}
+                </Link>
               </Button>
             </div>
           );
@@ -428,7 +448,13 @@ export function DisplacedDashboard({
             <NeedsBarChart
               dict={dict}
               needs={
-                summary?.needs ?? { FOOD: 0, MEDICAL: 0, SHELTER: 0, CASH: 0 }
+                summary?.needs ?? {
+                  FOOD: 0,
+                  MEDICAL: 0,
+                  SHELTER: 0,
+                  CASH: 0,
+                  WINTERIZATION: 0,
+                }
               }
             />
           </CardContent>
@@ -440,7 +466,7 @@ export function DisplacedDashboard({
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">{tDash.filters.title}</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 items-end gap-4 sm:grid-cols-3">
+        <CardContent className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>{tDash.filters.status}</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -457,7 +483,6 @@ export function DisplacedDashboard({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex-1" />
           <Button
             variant="ghost"
             onClick={() => {
@@ -495,14 +520,25 @@ export function DisplacedDashboard({
             onRetry={() => void listQuery.refetch()}
             renderSubRow={(row) => (
               <div className="flex flex-wrap gap-2 py-2">
-                {row.original.idDocumentUrls.map((url, index) => (
-                  <Button key={url} asChild variant="outline" size="sm">
-                    <a href={url} target="_blank" rel="noreferrer">
+                {row.original.idDocumentUrls.map((url, index) => {
+                  const title = fill(tDash.table.documentLabel, {
+                    index: index + 1,
+                  });
+                  return (
+                    <Button
+                      key={url}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setViewerTitle(title);
+                        setViewerUrl(url);
+                      }}
+                    >
                       <FileText className="h-3.5 w-3.5" />
-                      {fill(tDash.table.documentLabel, { index: index + 1 })}
-                    </a>
-                  </Button>
-                ))}
+                      {title}
+                    </Button>
+                  );
+                })}
               </div>
             )}
             getRowCanExpand={(row) => row.original.idDocumentUrls.length > 0}
@@ -510,12 +546,11 @@ export function DisplacedDashboard({
         </CardContent>
       </Card>
 
-      <DisplacedEditDialog
-        open={editingItem !== null}
-        audience={audience}
-        item={editingItem}
+      <DocumentViewerDialog
         dict={dict}
-        onClose={() => setEditingItem(null)}
+        url={viewerUrl}
+        title={viewerTitle}
+        onClose={() => setViewerUrl(null)}
       />
     </div>
   );

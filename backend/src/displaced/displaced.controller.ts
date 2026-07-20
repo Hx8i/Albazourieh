@@ -115,6 +115,18 @@ export class DisplacedController {
     return this.service.getSummary('SYRIAN');
   }
 
+  /**
+   * Municipality staff: one registration for the detail page. Declared
+   * after `syrian/summary` so the literal route keeps winning.
+   */
+  @Get('syrian/:id')
+  @UseGuards(JwtAuthGuard)
+  async getSyrianById(
+    @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
+  ): Promise<SyrianDisplaced> {
+    return this.service.getSyrianById(id);
+  }
+
   /** Municipality staff: triage a registration (PENDING/APPROVED/REJECTED). */
   @Patch('syrian/:id/status')
   @UseGuards(JwtAuthGuard)
@@ -141,6 +153,21 @@ export class DisplacedController {
     @Req() request: AuthenticatedRequest,
   ): Promise<SyrianDisplaced> {
     return this.service.updateSyrian(id, dto, {
+      id: request.user.sub,
+      name: request.user.fullName,
+      ipAddress: request.ip,
+    });
+  }
+
+  /** Municipality staff: record that a registration's detail view was opened. */
+  @Post('syrian/:id/view')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  async logSyrianView(
+    @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    await this.service.recordView('SYRIAN', id, {
       id: request.user.sub,
       name: request.user.fullName,
       ipAddress: request.ip,
@@ -243,6 +270,18 @@ export class DisplacedController {
     return this.service.getSummary('LEBANESE');
   }
 
+  /**
+   * Municipality staff: one registration for the detail page. Declared
+   * after `lebanese/summary` so the literal route keeps winning.
+   */
+  @Get('lebanese/:id')
+  @UseGuards(JwtAuthGuard)
+  async getLebaneseById(
+    @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
+  ): Promise<LebaneseDisplaced> {
+    return this.service.getLebaneseById(id);
+  }
+
   /** Municipality staff: triage a registration (PENDING/APPROVED/REJECTED). */
   @Patch('lebanese/:id/status')
   @UseGuards(JwtAuthGuard)
@@ -269,6 +308,21 @@ export class DisplacedController {
     @Req() request: AuthenticatedRequest,
   ): Promise<LebaneseDisplaced> {
     return this.service.updateLebanese(id, dto, {
+      id: request.user.sub,
+      name: request.user.fullName,
+      ipAddress: request.ip,
+    });
+  }
+
+  /** Municipality staff: record that a registration's detail view was opened. */
+  @Post('lebanese/:id/view')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  async logLebaneseView(
+    @Param('id', new ZodValidationPipe(displacedIdParamSchema)) id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    await this.service.recordView('LEBANESE', id, {
       id: request.user.sub,
       name: request.user.fullName,
       ipAddress: request.ip,
