@@ -79,6 +79,10 @@ const calendarDateSchema = z
   .refine((value) => {
     const parsed = new Date(`${value}T00:00:00Z`);
     if (Number.isNaN(parsed.getTime())) return false;
+    // JS Date rolls invalid days (e.g. "2024-02-30") over into the next
+    // month instead of rejecting them; re-serialising and comparing back
+    // to the input catches that normalisation.
+    if (parsed.toISOString().slice(0, 10) !== value) return false;
     return parsed.getTime() <= Date.now();
   }, 'Date must be a valid day that is not in the future');
 

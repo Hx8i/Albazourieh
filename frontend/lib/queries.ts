@@ -200,6 +200,7 @@ export function useUpdateDisplacedStatusMutation(audience: DisplacedAudience) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.displaced.all(audience),
       });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
     },
   });
 }

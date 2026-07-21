@@ -43,4 +43,9 @@ export class UploadsService {
 
     return this.storage.upload(kind, buffer, fileName, normalizedMime);
   }
+
+  /** Best-effort removal of a previously-uploaded object (see SupabaseStorageService.remove). */
+  async deleteEvidence(url: string): Promise<void> {
+    await this.storage.remove(url);
+  }
 }

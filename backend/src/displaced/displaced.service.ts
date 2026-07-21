@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AuditLogService } from '../audit/audit-log.service';
 import { TtlCacheService } from '../common/cache/ttl-cache.service';
 import {
+  ConcurrentUpdateError,
   DisplacedRegistrationNotFoundError,
   TooManyIdDocumentsError,
 } from '../common/errors/domain.errors';
@@ -33,6 +34,13 @@ const CACHE_PREFIX: Record<DisplacedAudience, string> = {
   LEBANESE: 'displaced:lebanese:',
 };
 
+/**
+ * Bounded retries for the compare-and-swap id-document list updates
+ * below (see `updateSyrianIdDocumentsIfUnchanged`) — enough to absorb a
+ * genuine race between two staff members without looping forever.
+ */
+const MAX_DOCUMENT_UPDATE_ATTEMPTS = 5;
+
 const AUDIENCE_LABEL: Record<DisplacedAudience, { en: string; ar: string }> = {
   SYRIAN: { en: 'Syrian displaced', ar: 'لاجئ سوري' },
   LEBANESE: { en: 'Lebanese displaced', ar: 'نازح لبناني' },
@@ -62,9 +70,14 @@ export class DisplacedService {
   ): Promise<SyrianDisplaced> {
     this.assertWithinDocumentCap(idDocuments.length);
     const idDocumentUrls = await this.uploadIdDocuments(idDocuments);
-    const created = await this.repository.createSyrian(payload, idDocumentUrls);
-    this.cache.invalidatePrefix(CACHE_PREFIX.SYRIAN);
-    return created;
+    try {
+      const created = await this.repository.createSyrian(payload, idDocumentUrls);
+      this.cache.invalidatePrefix(CACHE_PREFIX.SYRIAN);
+      return created;
+    } catch (error) {
+      await this.cleanupUploadedDocuments(idDocumentUrls);
+      throw error;
+    }
   }
 
   async submitLebanese(
@@ -73,12 +86,22 @@ export class DisplacedService {
   ): Promise<LebaneseDisplaced> {
     this.assertWithinDocumentCap(idDocuments.length);
     const idDocumentUrls = await this.uploadIdDocuments(idDocuments);
-    const created = await this.repository.createLebanese(
-      payload,
-      idDocumentUrls,
-    );
-    this.cache.invalidatePrefix(CACHE_PREFIX.LEBANESE);
-    return created;
+    try {
+      const created = await this.repository.createLebanese(
+        payload,
+        idDocumentUrls,
+      );
+      this.cache.invalidatePrefix(CACHE_PREFIX.LEBANESE);
+      return created;
+    } catch (error) {
+      await this.cleanupUploadedDocuments(idDocumentUrls);
+      throw error;
+    }
+  }
+
+  /** Best-effort cleanup of orphaned storage objects after a failed persist. */
+  private async cleanupUploadedDocuments(urls: string[]): Promise<void> {
+    await Promise.all(urls.map((url) => this.uploads.deleteEvidence(url)));
   }
 
   private assertWithinDocumentCap(count: number): void {
@@ -276,43 +299,69 @@ export class DisplacedService {
     files: Express.Multer.File[],
     reviewer: ActingReviewer,
   ): Promise<string[]> {
-    const existing =
-      audience === 'SYRIAN'
-        ? await this.repository.findSyrianById(id)
-        : await this.repository.findLebaneseById(id);
-    if (!existing) {
-      throw new DisplacedRegistrationNotFoundError(id);
-    }
-    if (
-      existing.idDocumentUrls.length + files.length >
-      MAX_ID_DOCUMENTS_PER_REGISTRATION
-    ) {
-      throw new TooManyIdDocumentsError(MAX_ID_DOCUMENTS_PER_REGISTRATION);
-    }
-
     const uploadedUrls = await this.uploadIdDocuments(files);
 
-    const updated =
-      audience === 'SYRIAN'
-        ? await this.repository.updateSyrian(id, {
-            idDocumentUrls: { push: uploadedUrls },
-          })
-        : await this.repository.updateLebanese(id, {
-            idDocumentUrls: { push: uploadedUrls },
-          });
+    let outcome: { finalUrls: string[]; fullName: string } | null = null;
+    try {
+      for (
+        let attempt = 0;
+        attempt < MAX_DOCUMENT_UPDATE_ATTEMPTS && !outcome;
+        attempt += 1
+      ) {
+        const existing =
+          audience === 'SYRIAN'
+            ? await this.repository.findSyrianById(id)
+            : await this.repository.findLebaneseById(id);
+        if (!existing) {
+          throw new DisplacedRegistrationNotFoundError(id);
+        }
+        if (
+          existing.idDocumentUrls.length + uploadedUrls.length >
+          MAX_ID_DOCUMENTS_PER_REGISTRATION
+        ) {
+          throw new TooManyIdDocumentsError(MAX_ID_DOCUMENTS_PER_REGISTRATION);
+        }
+
+        // Compare-and-swap against the list we just read: if another
+        // request changed it first, updatedCount is 0 and we retry
+        // against the fresh state instead of silently overwriting it.
+        const nextUrls = [...existing.idDocumentUrls, ...uploadedUrls];
+        const updatedCount =
+          audience === 'SYRIAN'
+            ? await this.repository.updateSyrianIdDocumentsIfUnchanged(
+                id,
+                existing.idDocumentUrls,
+                nextUrls,
+              )
+            : await this.repository.updateLebaneseIdDocumentsIfUnchanged(
+                id,
+                existing.idDocumentUrls,
+                nextUrls,
+              );
+        if (updatedCount > 0) {
+          outcome = { finalUrls: nextUrls, fullName: existing.fullName };
+        }
+      }
+      if (!outcome) {
+        throw new ConcurrentUpdateError();
+      }
+    } catch (error) {
+      await this.cleanupUploadedDocuments(uploadedUrls);
+      throw error;
+    }
 
     await this.audit.record({
       adminId: reviewer.id,
       adminName: reviewer.name,
       actionType: 'UPDATE_DISPLACED_REGISTRATION',
       targetId: id,
-      details: `Uploaded ${uploadedUrls.length} new ID document(s) for ${AUDIENCE_LABEL[audience].en} "${existing.fullName}"`,
-      detailsAr: `تحميل ${uploadedUrls.length} مستند(ات) هوية جديدة لـ ${AUDIENCE_LABEL[audience].ar} "${existing.fullName}"`,
+      details: `Uploaded ${uploadedUrls.length} new ID document(s) for ${AUDIENCE_LABEL[audience].en} "${outcome.fullName}"`,
+      detailsAr: `تحميل ${uploadedUrls.length} مستند(ات) هوية جديدة لـ ${AUDIENCE_LABEL[audience].ar} "${outcome.fullName}"`,
       ipAddress: reviewer.ipAddress,
     });
 
     this.cache.invalidatePrefix(CACHE_PREFIX[audience]);
-    return updated.idDocumentUrls;
+    return outcome.finalUrls;
   }
 
   /**
@@ -326,35 +375,68 @@ export class DisplacedService {
     url: string,
     reviewer: ActingReviewer,
   ): Promise<string[]> {
-    const existing =
-      audience === 'SYRIAN'
-        ? await this.repository.findSyrianById(id)
-        : await this.repository.findLebaneseById(id);
-    if (!existing) {
-      throw new DisplacedRegistrationNotFoundError(id);
+    let outcome: { finalUrls: string[]; fullName: string; removed: boolean } | null =
+      null;
+
+    for (
+      let attempt = 0;
+      attempt < MAX_DOCUMENT_UPDATE_ATTEMPTS && !outcome;
+      attempt += 1
+    ) {
+      const existing =
+        audience === 'SYRIAN'
+          ? await this.repository.findSyrianById(id)
+          : await this.repository.findLebaneseById(id);
+      if (!existing) {
+        throw new DisplacedRegistrationNotFoundError(id);
+      }
+
+      const nextUrls = existing.idDocumentUrls.filter(
+        (existingUrl) => existingUrl !== url,
+      );
+      if (nextUrls.length === existing.idDocumentUrls.length) {
+        // Already gone (deleted concurrently, or an unknown URL) — no-op.
+        outcome = { finalUrls: existing.idDocumentUrls, fullName: existing.fullName, removed: false };
+        break;
+      }
+
+      const updatedCount =
+        audience === 'SYRIAN'
+          ? await this.repository.updateSyrianIdDocumentsIfUnchanged(
+              id,
+              existing.idDocumentUrls,
+              nextUrls,
+            )
+          : await this.repository.updateLebaneseIdDocumentsIfUnchanged(
+              id,
+              existing.idDocumentUrls,
+              nextUrls,
+            );
+      if (updatedCount > 0) {
+        outcome = { finalUrls: nextUrls, fullName: existing.fullName, removed: true };
+      }
     }
 
-    const idDocumentUrls = existing.idDocumentUrls.filter(
-      (existingUrl) => existingUrl !== url,
-    );
+    if (!outcome) {
+      throw new ConcurrentUpdateError();
+    }
 
-    const updated =
-      audience === 'SYRIAN'
-        ? await this.repository.updateSyrian(id, { idDocumentUrls })
-        : await this.repository.updateLebanese(id, { idDocumentUrls });
+    if (outcome.removed) {
+      await this.uploads.deleteEvidence(url);
+    }
 
     await this.audit.record({
       adminId: reviewer.id,
       adminName: reviewer.name,
       actionType: 'UPDATE_DISPLACED_REGISTRATION',
       targetId: id,
-      details: `Deleted an ID document for ${AUDIENCE_LABEL[audience].en} "${existing.fullName}"`,
-      detailsAr: `حذف مستند هوية لـ ${AUDIENCE_LABEL[audience].ar} "${existing.fullName}"`,
+      details: `Deleted an ID document for ${AUDIENCE_LABEL[audience].en} "${outcome.fullName}"`,
+      detailsAr: `حذف مستند هوية لـ ${AUDIENCE_LABEL[audience].ar} "${outcome.fullName}"`,
       ipAddress: reviewer.ipAddress,
     });
 
     this.cache.invalidatePrefix(CACHE_PREFIX[audience]);
-    return updated.idDocumentUrls;
+    return outcome.finalUrls;
   }
 
   /**

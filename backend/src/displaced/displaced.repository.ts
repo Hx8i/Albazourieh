@@ -236,6 +236,37 @@ export class DisplacedRepository {
     });
   }
 
+  /**
+   * Compare-and-swap write for the id-document array: only applies when
+   * the row's current list still matches `expected`, so two concurrent
+   * uploads/deletes on the same registration can't silently clobber one
+   * another or push the list past the cap. Returns how many rows
+   * matched (0 means someone else changed it first — caller retries).
+   */
+  async updateSyrianIdDocumentsIfUnchanged(
+    id: string,
+    expected: string[],
+    next: string[],
+  ): Promise<number> {
+    const result = await this.prisma.syrianDisplaced.updateMany({
+      where: { id, idDocumentUrls: { equals: expected } },
+      data: { idDocumentUrls: next },
+    });
+    return result.count;
+  }
+
+  async updateLebaneseIdDocumentsIfUnchanged(
+    id: string,
+    expected: string[],
+    next: string[],
+  ): Promise<number> {
+    const result = await this.prisma.lebaneseDisplaced.updateMany({
+      where: { id, idDocumentUrls: { equals: expected } },
+      data: { idDocumentUrls: next },
+    });
+    return result.count;
+  }
+
   // ─────────────────────────── Aggregates ──────────────────────────
 
   /**

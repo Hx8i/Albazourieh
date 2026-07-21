@@ -85,6 +85,20 @@ function normalizePhone(value: string): string {
   return value.replace(/[\s-]/g, '');
 }
 
+/**
+ * "YYYY-MM-DD" for the caller's local calendar day. `toISOString()` reports
+ * UTC, which lags a local date that's ahead of UTC (Lebanon included) for
+ * a few hours after local midnight — using it here would reject "today"
+ * as a future date during that window.
+ */
+function todayLocalIso(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 type FieldError =
   | 'fullNameRequired'
   | 'invalidPhone'
@@ -100,7 +114,8 @@ type FieldError =
   | 'dateRequired'
   | 'needsRequired'
   | 'idRequired'
-  | 'fileTooLarge';
+  | 'fileTooLarge'
+  | 'propertyDamagedRequired';
 
 interface FormState {
   fullName: string;
@@ -166,6 +181,7 @@ const STEP_FIELDS: ReadonlyArray<ReadonlyArray<keyof FormState>> = [
     'shelterContactPhone',
     'origin',
     'date',
+    'isPropertyDamaged',
   ],
   ['needs'],
 ];
@@ -252,17 +268,16 @@ export function DisplacedIntakeForm({
     setCompressing(true);
     try {
       const prepared = await Promise.all(selected.map((file) => compressImage(file)));
-      if (prepared.some((file) => file.size > SAFE_UPLOAD_BYTES)) {
+      const combined = [...state.idDocuments, ...prepared].slice(
+        0,
+        MAX_ID_DOCUMENTS_PER_REGISTRATION,
+      );
+      const totalBytes = combined.reduce((sum, file) => sum + file.size, 0);
+      if (totalBytes > SAFE_UPLOAD_BYTES) {
         setErrors((previous) => ({ ...previous, idDocuments: 'fileTooLarge' }));
         return;
       }
-      setState((previous) => {
-        const combined = [...previous.idDocuments, ...prepared].slice(
-          0,
-          MAX_ID_DOCUMENTS_PER_REGISTRATION,
-        );
-        return { ...previous, idDocuments: combined };
-      });
+      setState((previous) => ({ ...previous, idDocuments: combined }));
       setErrors((previous) =>
         previous.idDocuments ? { ...previous, idDocuments: undefined } : previous,
       );
@@ -278,7 +293,7 @@ export function DisplacedIntakeForm({
     }));
   };
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = todayLocalIso();
   // Every shelter type except an informal settlement collects a contact.
   const needsContact =
     state.shelterType !== '' && state.shelterType !== SHELTER_WITHOUT_CONTACT;
@@ -313,10 +328,15 @@ export function DisplacedIntakeForm({
     if (!/^\d{4}-\d{2}-\d{2}$/.test(state.date) || state.date > todayIso) {
       next.date = 'dateRequired';
     }
+    if (audience === 'lebanese' && state.isPropertyDamaged === null) {
+      next.isPropertyDamaged = 'propertyDamagedRequired';
+    }
     if (state.needs.length === 0) next.needs = 'needsRequired';
     if (state.idDocuments.length === 0) {
       next.idDocuments = 'idRequired';
-    } else if (state.idDocuments.some((file) => file.size > SAFE_UPLOAD_BYTES)) {
+    } else if (
+      state.idDocuments.reduce((sum, file) => sum + file.size, 0) > SAFE_UPLOAD_BYTES
+    ) {
       next.idDocuments = 'fileTooLarge';
     }
     return next;
@@ -408,7 +428,11 @@ export function DisplacedIntakeForm({
             ...shared,
             shelterType: state.shelterType as LebaneseShelterType,
             originVillage: state.origin.trim(),
-            isPropertyDamaged: state.isPropertyDamaged === true,
+            // collectErrors() above already requires an explicit answer
+            // for Lebanese submissions, so this is never null here — cast
+            // rather than `=== true`, which would silently turn an
+            // unanswered null into "not damaged".
+            isPropertyDamaged: state.isPropertyDamaged as boolean,
             primarySourceOfIncome: state.income.trim() || undefined,
             displacementDate: state.date,
           },
@@ -798,6 +822,7 @@ export function DisplacedIntakeForm({
                         </button>
                       ))}
                     </div>
+                    {errorText('isPropertyDamaged')}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="displaced-income">

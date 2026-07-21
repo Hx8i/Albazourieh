@@ -49,6 +49,29 @@ export type DamageReportWithRelations = Prisma.DamageReportGetPayload<
   typeof reportWithRelations
 >;
 
+/**
+ * Overlays this report's own reporter-name/phone overrides (set via admin
+ * edits, see `updateReportData`) onto the shared reporter's display
+ * fields — so a correction made on one report is never mistaken for a
+ * change to the citizen's account and never appears on their other
+ * reports.
+ */
+function applyReporterOverrides(
+  report: DamageReportWithRelations,
+): DamageReportWithRelations {
+  if (!report.reporterNameOverride && !report.reporterPhoneOverride) {
+    return report;
+  }
+  return {
+    ...report,
+    reporter: {
+      ...report.reporter,
+      fullName: report.reporterNameOverride ?? report.reporter.fullName,
+      phoneNumber: report.reporterPhoneOverride ?? report.reporter.phoneNumber,
+    },
+  };
+}
+
 /** How many fresh codes to try before giving up on a pathological run. */
 const MAX_REFERENCE_CODE_ATTEMPTS = 5;
 
@@ -293,10 +316,11 @@ export class DamageReportRepository {
   }
 
   async findById(id: string): Promise<DamageReportWithRelations | null> {
-    return this.prisma.damageReport.findUnique({
+    const report = await this.prisma.damageReport.findUnique({
       where: { id },
       ...reportWithRelations,
     });
+    return report ? applyReporterOverrides(report) : null;
   }
 
   /**
@@ -343,7 +367,10 @@ export class DamageReportRepository {
 
     if (filter.search) {
       // One input, four identifying fields — a report matches when any
-      // of them contains the term (case-insensitively).
+      // of them contains the term (case-insensitively). Reporter name/
+      // phone are matched on both the shared account and this report's
+      // own override (see applyReporterOverrides), so a search still
+      // finds a report by its corrected display name/phone.
       where.OR = [
         { referenceCode: { contains: filter.search, mode: 'insensitive' } },
         {
@@ -352,6 +379,10 @@ export class DamageReportRepository {
           },
         },
         { reporter: { phoneNumber: { contains: filter.search } } },
+        {
+          reporterNameOverride: { contains: filter.search, mode: 'insensitive' },
+        },
+        { reporterPhoneOverride: { contains: filter.search } },
         {
           property: {
             realEstateNumber: { contains: filter.search, mode: 'insensitive' },
@@ -381,7 +412,7 @@ export class DamageReportRepository {
     );
 
     return {
-      items,
+      items: items.map(applyReporterOverrides),
       totalCount,
       totalPages: Math.max(1, Math.ceil(totalCount / filter.pageSize)),
       currentPage: filter.page,
@@ -423,14 +454,26 @@ export class DamageReportRepository {
   ): Promise<DamageReportWithRelations> {
     const report = await this.prisma.damageReport.findUniqueOrThrow({
       where: { id: reportId },
-      select: { reporterId: true, propertyId: true },
+      select: { propertyId: true },
     });
 
-    return this.prisma.$transaction(async (tx) => {
-      if (Object.keys(reporterUpdates).length > 0) {
-        await tx.user.update({
-          where: { id: report.reporterId },
-          data: reporterUpdates,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Reporter name/phone corrections are stored as an override on
+      // THIS report, never written to the shared User row — the same
+      // phone number can be the reporter on several reports, and
+      // "fixing a typo" here must not relabel/renumber the others (or
+      // collide with another citizen's unique phone number).
+      const damageReportData: Record<string, unknown> = { ...reportUpdates };
+      if (reporterUpdates.fullName !== undefined) {
+        damageReportData.reporterNameOverride = reporterUpdates.fullName;
+      }
+      if (reporterUpdates.phoneNumber !== undefined) {
+        damageReportData.reporterPhoneOverride = reporterUpdates.phoneNumber;
+      }
+      if (Object.keys(damageReportData).length > 0) {
+        await tx.damageReport.update({
+          where: { id: reportId },
+          data: damageReportData,
         });
       }
       if (Object.keys(propertyUpdates).length > 0) {
@@ -444,18 +487,14 @@ export class DamageReportRepository {
           data: propData,
         });
       }
-      if (Object.keys(reportUpdates).length > 0) {
-        await tx.damageReport.update({
-          where: { id: reportId },
-          data: reportUpdates,
-        });
-      }
 
       return tx.damageReport.findUniqueOrThrow({
         where: { id: reportId },
         ...reportWithRelations,
       });
     }, { timeout: 30000, maxWait: 30000 });
+
+    return applyReporterOverrides(updated);
   }
 
   /** Replace an attachment row: delete old, create new in a transaction. */

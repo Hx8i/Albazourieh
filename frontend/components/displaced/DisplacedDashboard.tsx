@@ -101,7 +101,7 @@ export function DisplacedDashboard({
     setPagination((previous) =>
       previous.pageIndex === 0 ? previous : { ...previous, pageIndex: 0 },
     );
-  }, [statusFilter]);
+  }, [statusFilter, search]);
 
   const sort = sorting[0];
   const sortBy: DisplacedSortField =

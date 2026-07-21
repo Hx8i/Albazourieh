@@ -64,6 +64,9 @@ export function DisplacedEditDialog({
   const uploadIdMutation = useUploadDisplacedIdDocumentsMutation(audience);
   const deleteIdMutation = useDeleteDisplacedIdDocumentMutation(audience);
   const addDocumentInputRef = React.useRef<HTMLInputElement>(null);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
+  const titleId = 'displaced-edit-dialog-title';
 
   const isPending =
     updateSyrian.isPending ||
@@ -148,18 +151,50 @@ export function DisplacedEditDialog({
     );
   };
 
-  // Lock body scroll on open
+  // Lock body scroll, trap focus and restore it to the trigger on close.
   React.useEffect(() => {
     if (!open) return;
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const focusableSelector =
+      'a[href], button:not([disabled]):not([tabindex="-1"]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const getFocusable = (): HTMLElement[] =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
+      );
+
+    // Defer so the dialog's own DOM has committed before we move focus.
+    const focusHandle = window.setTimeout(() => {
+      getFocusable()[0]?.focus();
+    }, 0);
+
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !isPending) onClose();
+      if (event.key === 'Escape') {
+        if (!isPending) onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
+      window.clearTimeout(focusHandle);
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus?.();
     };
   }, [open, isPending, onClose]);
 
@@ -242,25 +277,28 @@ export function DisplacedEditDialog({
 
   return (
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto"
       role="dialog"
       aria-modal="true"
+      aria-labelledby={titleId}
     >
       <button
         type="button"
+        tabIndex={-1}
         className="absolute inset-0 h-full w-full cursor-default bg-transparent"
         onClick={() => {
           if (!isPending) onClose();
         }}
         aria-label={dict.displaced.dashboard.editDialog.cancel}
       />
-      
+
       <div className="relative z-10 flex w-full max-w-lg flex-col rounded-xl border bg-background shadow-xl my-8 max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-        
+
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b p-5">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">
+            <h2 id={titleId} className="text-lg font-semibold">
               {tEdit.title}
             </h2>
             <p className="text-sm text-muted-foreground">

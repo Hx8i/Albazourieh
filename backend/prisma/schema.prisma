@@ -147,6 +147,14 @@ model DamageReport {
   rejectionReason String?
   rejectedField   String?        @db.VarChar(100)
   reporterId      String         @db.Uuid
+  /// Per-report override of the reporter's display name, set by admin
+  /// edits (damage-report.dto.ts AdminEditReportDto). Kept here instead
+  /// of on the shared User row so correcting one report's reporter info
+  /// never relabels that citizen's other reports.
+  reporterNameOverride  String?  @db.VarChar(120)
+  /// Per-report override of the reporter's display phone — same
+  /// rationale as reporterNameOverride.
+  reporterPhoneOverride String?  @db.VarChar(20)
   propertyId      String         @db.Uuid
   reviewedById    String?        @db.Uuid
   createdAt       DateTime       @default(now())

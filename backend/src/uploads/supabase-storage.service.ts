@@ -85,4 +85,31 @@ export class SupabaseStorageService implements OnModuleInit {
     const { data } = this.client.storage.from(config.bucket).getPublicUrl(path);
     return data.publicUrl;
   }
+
+  /**
+   * Best-effort delete of a previously-uploaded object, given the public
+   * URL `upload()` returned. Failures are logged, not thrown: a stray
+   * blob left in storage is a lesser problem than blocking whatever
+   * caused the delete (removing a doc, cleaning up after a failed save).
+   */
+  async remove(publicUrl: string): Promise<void> {
+    if (!this.client) return;
+
+    const marker = '/object/public/';
+    const markerIndex = publicUrl.indexOf(marker);
+    if (markerIndex === -1) return;
+
+    const [bucket, ...pathParts] = publicUrl
+      .slice(markerIndex + marker.length)
+      .split('/');
+    const path = pathParts.join('/');
+    if (!bucket || !path) return;
+
+    const { error } = await this.client.storage.from(bucket).remove([path]);
+    if (error) {
+      this.logger.warn(
+        `Could not delete storage object "${path}" from "${bucket}": ${error.message}`,
+      );
+    }
+  }
 }

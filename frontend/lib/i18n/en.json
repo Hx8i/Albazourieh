@@ -474,7 +474,8 @@
         "dateRequired": "Please choose a valid date (not in the future)",
         "needsRequired": "Please select at least one urgent need",
         "idRequired": "Please attach a photo of an identifying document",
-        "fileTooLarge": "This file is too large. Please attach a file smaller than 4MB."
+        "fileTooLarge": "This file is too large. Please attach a file smaller than 4MB.",
+        "propertyDamagedRequired": "Please indicate whether the household's property was damaged"
       }
     },
     "needs": {
