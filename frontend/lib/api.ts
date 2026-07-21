@@ -8,7 +8,18 @@ import {
   ReportStatus,
   SpatialPoint,
   StatusSummary,
+  AdminEditPayload,
 } from './schemas/damage-report.schema';
+import {
+  CreateLebaneseDisplacedPayload,
+  CreateSyrianDisplacedPayload,
+  DisplacedAudience,
+  DisplacedStatus,
+  DisplacedSummary,
+  LebaneseDisplacedItem,
+  PaginatedDisplaced,
+  SyrianDisplacedItem,
+} from './schemas/displaced.schema';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -260,10 +271,198 @@ export function updateReportStatus(
   id: string,
   status: ReportStatus,
   rejectionReason?: string,
+  rejectedField?: string,
 ): Promise<ApiResult<ReportListItem>> {
   return request<ReportListItem>(
     `/damage-reports/${id}/status`,
-    { method: 'PATCH', body: JSON.stringify({ status, rejectionReason }) },
+    { method: 'PATCH', body: JSON.stringify({ status, rejectionReason, rejectedField }) },
+    { staffAuth: true },
+  );
+}
+
+// ─────────────── Displaced persons (Syrian / Lebanese) ────────────────
+
+/** JSON payload + the registrant's identity document(s) in one FormData body. */
+function displacedFormData(payload: unknown, idDocuments: File[]): FormData {
+  const formData = new FormData();
+  formData.append('payload', JSON.stringify(payload));
+  for (const file of idDocuments) {
+    formData.append('idDocument', file, file.name);
+  }
+  return formData;
+}
+
+/** Public intake: register a Syrian displaced household. */
+export function submitSyrianDisplaced(
+  payload: CreateSyrianDisplacedPayload,
+  idDocuments: File[],
+): Promise<ApiResult<SyrianDisplacedItem>> {
+  return request<SyrianDisplacedItem>('/displaced/syrian', {
+    method: 'POST',
+    body: displacedFormData(payload, idDocuments),
+  });
+}
+
+/** Public intake: register a Lebanese displaced household. */
+export function submitLebaneseDisplaced(
+  payload: CreateLebaneseDisplacedPayload,
+  idDocuments: File[],
+): Promise<ApiResult<LebaneseDisplacedItem>> {
+  return request<LebaneseDisplacedItem>('/displaced/lebanese', {
+    method: 'POST',
+    body: displacedFormData(payload, idDocuments),
+  });
+}
+
+export type DisplacedSortField =
+  | 'createdAt'
+  | 'fullName'
+  | 'familyMembersCount'
+  | 'status';
+
+export interface ListDisplacedParams {
+  status?: DisplacedStatus;
+  /** Single-input search: registrant name or phone number. */
+  search?: string;
+  sortBy?: DisplacedSortField;
+  sortDir?: SortDirection;
+  page?: number;
+  pageSize?: number;
+}
+
+function displacedListQuery(params: ListDisplacedParams): string {
+  const search = new URLSearchParams();
+  if (params.status) search.set('status', params.status);
+  if (params.search) search.set('search', params.search);
+  if (params.sortBy) search.set('sortBy', params.sortBy);
+  if (params.sortDir) search.set('sortDir', params.sortDir);
+  if (params.page) search.set('page', String(params.page));
+  if (params.pageSize) search.set('pageSize', String(params.pageSize));
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
+export function listSyrianDisplaced(
+  params: ListDisplacedParams = {},
+): Promise<ApiResult<PaginatedDisplaced<SyrianDisplacedItem>>> {
+  return request<PaginatedDisplaced<SyrianDisplacedItem>>(
+    `/displaced/syrian${displacedListQuery(params)}`,
+    undefined,
+    { staffAuth: true },
+  );
+}
+
+export function listLebaneseDisplaced(
+  params: ListDisplacedParams = {},
+): Promise<ApiResult<PaginatedDisplaced<LebaneseDisplacedItem>>> {
+  return request<PaginatedDisplaced<LebaneseDisplacedItem>>(
+    `/displaced/lebanese${displacedListQuery(params)}`,
+    undefined,
+    { staffAuth: true },
+  );
+}
+
+/** Metric cards + chart aggregates for one audience's dashboard. */
+export function getDisplacedSummary(
+  audience: DisplacedAudience,
+): Promise<ApiResult<DisplacedSummary>> {
+  return request<DisplacedSummary>(`/displaced/${audience}/summary`, undefined, {
+    staffAuth: true,
+  });
+}
+
+/** Staff triage: move a registration between PENDING/APPROVED/REJECTED. */
+export function updateDisplacedStatus(
+  audience: DisplacedAudience,
+  id: string,
+  status: DisplacedStatus,
+): Promise<ApiResult<SyrianDisplacedItem | LebaneseDisplacedItem>> {
+  return request<SyrianDisplacedItem | LebaneseDisplacedItem>(
+    `/displaced/${audience}/${id}/status`,
+    { method: 'PATCH', body: JSON.stringify({ status }) },
+    { staffAuth: true },
+  );
+}
+
+/** Update a displaced registration (Syrian). */
+export function updateSyrianDisplaced(
+  id: string,
+  payload: Partial<CreateSyrianDisplacedPayload>,
+): Promise<ApiResult<SyrianDisplacedItem>> {
+  return request<SyrianDisplacedItem>(
+    `/displaced/syrian/${id}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    { staffAuth: true },
+  );
+}
+
+/** Update a displaced registration (Lebanese). */
+export function updateLebaneseDisplaced(
+  id: string,
+  payload: Partial<CreateLebaneseDisplacedPayload>,
+): Promise<ApiResult<LebaneseDisplacedItem>> {
+  return request<LebaneseDisplacedItem>(
+    `/displaced/lebanese/${id}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    { staffAuth: true },
+  );
+}
+
+/** Append one or more ID documents to a displaced registration. */
+export function uploadDisplacedIdDocuments(
+  audience: DisplacedAudience,
+  id: string,
+  files: File[],
+): Promise<ApiResult<{ idDocumentUrls: string[] }>> {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('idDocument', file, file.name);
+  }
+
+  return request<{ idDocumentUrls: string[] }>(
+    `/displaced/${audience}/${id}/id-document`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    { staffAuth: true },
+  );
+}
+
+/** One registration for the staff detail page. */
+export function getDisplacedById(
+  audience: DisplacedAudience,
+  id: string,
+): Promise<ApiResult<SyrianDisplacedItem | LebaneseDisplacedItem>> {
+  return request<SyrianDisplacedItem | LebaneseDisplacedItem>(
+    `/displaced/${audience}/${id}`,
+    undefined,
+    { staffAuth: true },
+  );
+}
+
+/** Trail entry: a staff member opened a registration's detail view. 204 → no body. */
+export function logDisplacedRecordView(
+  audience: DisplacedAudience,
+  id: string,
+): Promise<ApiResult<null>> {
+  return request<null>(
+    `/displaced/${audience}/${id}/view`,
+    { method: 'POST' },
+    { staffAuth: true },
+  );
+}
+
+/** Remove exactly one ID document (by URL) from a displaced registration. */
+export function deleteDisplacedIdDocument(
+  audience: DisplacedAudience,
+  id: string,
+  url: string,
+): Promise<ApiResult<{ idDocumentUrls: string[] }>> {
+  const search = new URLSearchParams({ url });
+  return request<{ idDocumentUrls: string[] }>(
+    `/displaced/${audience}/${id}/id-document?${search.toString()}`,
+    { method: 'DELETE' },
     { staffAuth: true },
   );
 }
@@ -320,6 +519,10 @@ export type AuditActionType =
   | 'CREATE_STAFF'
   | 'DELETE_STAFF'
   | 'UPDATE_REPORT_STATUS'
+  | 'UPDATE_DISPLACED_STATUS'
+  | 'UPDATE_DISPLACED_REGISTRATION'
+  | 'VIEW_DISPLACED_RECORD'
+  | 'EDIT_REPORT_DATA'
   | 'EXPORT_DATA';
 
 export interface AuditLogItem {
@@ -329,6 +532,7 @@ export interface AuditLogItem {
   actionType: AuditActionType;
   targetId: string;
   details: string;
+  detailsAr: string | null;
   ipAddress: string | null;
   createdAt: string;
 }
@@ -376,3 +580,54 @@ export function logExportEvent(rowCount: number): Promise<ApiResult<null>> {
     { staffAuth: true },
   );
 }
+
+/** Admin edit: update report data fields. */
+export function adminEditReport(
+  id: string,
+  payload: AdminEditPayload,
+): Promise<ApiResult<ReportListItem>> {
+  return request<ReportListItem>(
+    `/damage-reports/${id}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    { staffAuth: true },
+  );
+}
+
+/** Admin edit: delete a specific attachment. */
+export function deleteReportAttachment(
+  reportId: string,
+  attachmentId: string,
+): Promise<ApiResult<null>> {
+  return request<null>(
+    `/damage-reports/${reportId}/attachments/${attachmentId}`,
+    {
+      method: 'DELETE',
+    },
+    { staffAuth: true },
+  );
+}
+
+/** Admin edit: add a specific attachment. */
+export function addReportAttachment(
+  reportId: string,
+  file: File,
+  label: string,
+): Promise<ApiResult<ReportListItem>> {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  formData.append('label', label);
+
+  return request<ReportListItem>(
+    `/damage-reports/${reportId}/attachments`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    { staffAuth: true },
+  );
+}
+
+

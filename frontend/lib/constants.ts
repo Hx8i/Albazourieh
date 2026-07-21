@@ -1,6 +1,8 @@
 /**
- * Hidden municipality portal path. Citizens are never linked here; the
- * old /dashboard path is hard-404'd in middleware. Rotating this slug
- * only requires renaming app/[locale]/(portal segment) + this constant.
+ * War-damages admin portal path, under the shared `/admin` area. The
+ * admin dashboards (war-damages / lebanese / syrian) all live beneath
+ * `/admin` and are gated by the staff login; citizens reach the public
+ * forms only from the `/:locale` landing hub, never from here. Relocating
+ * this only requires renaming app/[locale]/admin/(segment) + this constant.
  */
-export const ADMIN_PATH = 'admin-portal-x7b2';
+export const ADMIN_PATH = 'admin/war-damages';

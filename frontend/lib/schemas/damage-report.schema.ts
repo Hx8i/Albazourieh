@@ -26,6 +26,7 @@ export type ReportStatus =
   | 'REJECTED';
 export type DamageSeverity = 'TOTAL' | 'PARTIAL' | 'MINOR';
 export type AttachmentType = 'PHOTO' | 'DOCUMENT';
+export type RejectedField = 'Name' | 'Address' | 'Description' | 'Media';
 
 /** Vehicle sub-types offered in the "أضرار آليات" combobox. */
 export type VehicleKind = 'CAR' | 'TRUCK' | 'TRACTOR' | 'BUS' | 'VAN' | 'OTHER';
@@ -58,6 +59,7 @@ export type MultipartPayload =
         street: string;
         projectName?: string;
         floor: string;
+        unitArea?: number;
         additionalDirections?: string;
         district?: string;
         latitude: number;
@@ -92,6 +94,7 @@ export interface ReportListItem {
   status: ReportStatus;
   severity: DamageSeverity;
   rejectionReason: string | null;
+  rejectedField: RejectedField | null;
   createdAt: string;
   updatedAt: string;
   reporter: { id: string; fullName: string; phoneNumber: string };
@@ -101,6 +104,7 @@ export interface ReportListItem {
     ownershipStatus: OwnershipStatus | null;
     realEstateNumber: string | null;
     ownerPhoneNumber: string | null;
+    unitArea: number | null;
     vehicleType: string | null;
     vehicleTypeOther: string | null;
     district: string | null;
@@ -159,6 +163,7 @@ export interface PublicReportStatus {
   category: PropertyType;
   /** ISO-8601 submission timestamp. */
   submittedAt: string;
+  rejectedField?: RejectedField | null;
 }
 
 /** Public reference code: exactly 6 uppercase letters/digits (e.g. "A4X8Q2"). */
@@ -168,3 +173,21 @@ export const REFERENCE_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 export function isValidReferenceCode(raw: string): boolean {
   return REFERENCE_CODE_PATTERN.test(raw.trim().toUpperCase());
 }
+
+export interface AdminEditPayload {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  street?: string;
+  projectName?: string;
+  floor?: string;
+  unitArea?: number;
+  additionalDirections?: string;
+  propertyNumber?: string;
+  ownerPhoneNumber?: string;
+  latitude?: number;
+  longitude?: number;
+  description?: string;
+}
+

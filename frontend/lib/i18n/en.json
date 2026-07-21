@@ -2,6 +2,9 @@
   "common": {
     "appName": "Albazourieh Recovery Platform",
     "back": "Back",
+    "backToMain": "Back to Main Page",
+    "close": "Close",
+    "openInNewTab": "Open in new tab",
     "next": "Next",
     "submit": "Submit report",
     "loading": "Loading…",
@@ -16,7 +19,25 @@
     "title": "Post-War Damage Assessment",
     "subtitle": "Report damage to your home, land, vehicle or shop — step by step, in a few minutes.",
     "switchLanguage": "العربية",
-    "trackExisting": "Track an existing report"
+    "trackExisting": "Track an existing report",
+    "displacedHeading": "Displacement registration",
+    "displacedHint": "Are you a displaced household? Register to request municipal assistance.",
+    "hub": {
+      "title": "Al Bazourieh Municipality Services",
+      "subtitle": "Choose a service to get started.",
+      "warDamagesTitle": "Report war damage",
+      "warDamagesDesc": "Report damage to your home, land, vehicle or shop.",
+      "lebaneseTitle": "Lebanese displaced registration",
+      "lebaneseDesc": "For Lebanese households displaced within the country.",
+      "syrianTitle": "Syrian refugee registration",
+      "syrianDesc": "For displaced Syrian households seeking assistance."
+    }
+  },
+  "modules": {
+    "title": "Platform sections",
+    "warDamages": "War Damages",
+    "syrian": "Syrian Displaced",
+    "lebanese": "Lebanese Displaced"
   },
   "login": {
     "title": "Staff sign in",
@@ -82,12 +103,12 @@
     "lastNameLabel": "Family name",
     "phoneLabel": "Phone number",
     "phonePlaceholder": "03 123 456",
-    "nationalIdLabel": "National ID card (photo or PDF)",
+    "nationalIdLabel": "Identifying document (ID card, civil registry, passport, driver's licence…)*",
     "residencyProofLabel": "Proof of residency (utility bill or mukhtar certificate)",
     "ownershipTitle": "Do you own or rent this property?",
     "ownerOption": "I am the owner",
     "tenantOption": "I am a tenant",
-    "propertyDeedLabel": "Property deed",
+    "propertyDeedLabel": "Proof of ownership (property deed, real-estate certificate, or scanned sale contract…)",
     "deedOptionalHint": "Required only if available",
     "rentalContractLabel": "Rental contract",
     "vehicleTypeLabel": "Vehicle type",
@@ -105,6 +126,7 @@
     "ownerPhoneLabel": "Property owner's phone number",
     "chooseFile": "Choose file",
     "propertyNumberLabel": "Official property number",
+    "unitAreaLabel": "Unit area (sqm) *",
     "propertyNumberChecking": "Checking the property number…",
     "propertyNumberTaken": "This Property Number has already been submitted and is under evaluation.",
     "propertyNumberOk": "Property number is available ✓",
@@ -123,13 +145,13 @@
       "streetRequired": "Please enter the street",
       "floorRequired": "Please enter the floor",
       "districtRequired": "Please enter the city or town",
-      "descriptionRequired": "Please describe the damage in writing (at least 10 characters)",
+      "descriptionRequired": "Please describe the damage in writing (at least 3 characters)",
       "damagePhotoRequired": "Please attach at least one photo of the damage",
       "customVehicleTypeRequired": "Please specify the vehicle type",
       "locationRequired": "Please detect your location or drop the pin on the map first",
       "assetRequired": "Please choose what was damaged",
       "severityRequired": "Please choose the damage level",
-      "nationalIdRequired": "Please attach a photo of the national ID card",
+      "nationalIdRequired": "Please attach a photo of an identifying document",
       "residencyProofRequired": "Please attach a proof of residency",
       "ownershipRequired": "Please choose owner or tenant",
       "rentalContractRequired": "Tenants must attach the rental contract",
@@ -137,7 +159,9 @@
       "propertyNumberRequired": "Please enter the official property number",
       "propertyNumberNumeric": "The property number must contain digits only",
       "fileTooLarge": "This file is too large",
-      "uploadTooLarge": "Your photos and documents are too large to send together. Please remove a few photos or attach smaller files, then try again."
+      "uploadTooLarge": "Your photos and documents are too large to send together. Please remove a few photos or attach smaller files, then try again.",
+      "unitAreaRequired": "Please enter the unit area",
+      "unitAreaPositive": "Unit area must be a positive integer"
     }
   },
   "portalNav": {
@@ -305,6 +329,10 @@
       "CREATE_STAFF": "Created staff account",
       "DELETE_STAFF": "Revoked staff account",
       "UPDATE_REPORT_STATUS": "Changed report status",
+      "UPDATE_DISPLACED_STATUS": "Changed displaced status",
+      "UPDATE_DISPLACED_REGISTRATION": "Edited displaced registration",
+      "VIEW_DISPLACED_RECORD": "Viewed displaced record",
+      "EDIT_REPORT_DATA": "Edited report data",
       "EXPORT_DATA": "Exported data"
     },
     "empty": "No administrative actions recorded yet.",
@@ -339,6 +367,14 @@
     "rejectionReason": "Rejection reason",
     "rejectReasonLabel": "Why is this report rejected?",
     "rejectReasonPlaceholder": "At least 5 characters…",
+    "rejectFieldLabel": "Rejected Field",
+    "rejectFieldPlaceholder": "Select the field causing rejection…",
+    "rejectedFields": {
+      "Name": "Name",
+      "Address": "Address",
+      "Description": "Description",
+      "Media": "Media Uploads"
+    },
     "confirmReject": "Confirm rejection",
     "reviewedBy": "Reviewer recorded automatically from your login.",
     "ownership": "Ownership status",
@@ -353,6 +389,246 @@
       "RENTAL_CONTRACT": "Rental contract",
       "VEHICLE_REGISTRATION": "Vehicle papers",
       "RESIDENCY_PROOF": "Proof of residency"
+    },
+    "editMode": "Edit Mode",
+    "editModeToggle": "Edit Report Data",
+    "saveChanges": "Save Changes",
+    "cancelEdit": "Cancel",
+    "saving": "Saving changes...",
+    "editSuccess": "Changes saved successfully.",
+    "unitArea": "Unit Area (sqm)",
+    "deleteAttachment": "Delete Attachment",
+    "addDocument": "Add Document",
+    "confirmDeleteAttachment": "Are you sure you want to delete this attachment? This action cannot be undone."
+  },
+  "displaced": {
+    "syrian": {
+      "formTitle": "Syrian Displaced Registration",
+      "formSubtitle": "Register a displaced Syrian household to request municipal assistance.",
+      "dashboardTitle": "Syrian Displaced Dashboard",
+      "dashboardSubtitle": "Registered Syrian displaced households — Al Bazourieh",
+      "originLabel": "City of origin in Syria",
+      "originPlaceholder": "Example: Aleppo",
+      "dateLabel": "Date of entry into Lebanon"
+    },
+    "lebanese": {
+      "formTitle": "Lebanese Displaced Registration",
+      "formSubtitle": "Register a displaced Lebanese household to request municipal assistance.",
+      "dashboardTitle": "Lebanese Displaced Dashboard",
+      "dashboardSubtitle": "Registered Lebanese displaced households — Al Bazourieh",
+      "originLabel": "Village of origin in Lebanon",
+      "originPlaceholder": "Example: Aita al-Shaab",
+      "dateLabel": "Date of displacement"
+    },
+    "form": {
+      "identitySection": "Identity & contact",
+      "fullNameLabel": "Full name",
+      "phoneLabel": "Phone number",
+      "phonePlaceholder": "03 123 456",
+      "idLabel": "Identity document (ID card, passport, or residency paper)",
+      "idHint": "photo or PDF",
+      "householdSection": "Household & location",
+      "familyMembersLabel": "Number of family members",
+      "familyMembersNamesLabel": "Names of all family members",
+      "familyMembersNamesPlaceholder": "List the full name of each family member...",
+      "alternatePhoneLabel": "Alternate phone",
+      "vulnerabilityLabel": "Vulnerability status",
+      "locationSection": "Current location",
+      "governorateLabel": "Current governorate",
+      "governoratePlaceholder": "Choose the governorate…",
+      "districtLabel": "District / City",
+      "districtPlaceholder": "Example: Tyre",
+      "neighborhoodLabel": "Neighborhood",
+      "neighborhoodPlaceholder": "Example: Al Bazourieh",
+      "buildingLabel": "Building name / number",
+      "buildingPlaceholder": "Example: Al Salam building",
+      "landlordPhoneLabel": "Landlord's phone number",
+      "registrationNumberLabel": "UNHCR / registration number",
+      "registrationNumberHint": "Leave empty if not registered",
+      "shelterTypeLabel": "Current housing type",
+      "shelterTypePlaceholder": "Choose the housing type…",
+      "propertyDamagedLabel": "Was the household's property damaged?",
+      "incomeLabel": "Primary source of income",
+      "incomePlaceholder": "Example: daily labor, agriculture…",
+      "needsSection": "Urgent needs",
+      "needsHint": "Select everything the household urgently needs.",
+      "submit": "Submit registration",
+      "submitting": "Submitting…",
+      "successTitle": "Registration received!",
+      "successBody": "The municipality will review the registration. Keep your phone available.",
+      "successToast": "Registration submitted successfully",
+      "registerAnother": "Register another household",
+      "errorTitle": "The registration could not be sent",
+      "errors": {
+        "fullNameRequired": "Please enter the full name (at least 3 characters)",
+        "invalidPhone": "Please enter a valid phone number",
+        "invalidAlternatePhone": "Please enter a valid alternate phone number",
+        "familyMembersRequired": "Please enter the number of family members (1–50)",
+        "familyMembersNamesRequired": "Please list the names of all family members",
+        "neighborhoodRequired": "Please enter the neighborhood",
+        "buildingRequired": "Please enter the building name or number",
+        "shelterTypeRequired": "Please choose the housing type",
+        "shelterContactNameRequired": "Please enter the contact person's name",
+        "shelterContactPhoneRequired": "Please enter a valid contact phone number",
+        "originRequired": "Please enter the place of origin",
+        "dateRequired": "Please choose a valid date (not in the future)",
+        "needsRequired": "Please select at least one urgent need",
+        "idRequired": "Please attach a photo of an identifying document",
+        "fileTooLarge": "This file is too large. Please attach a file smaller than 4MB.",
+        "propertyDamagedRequired": "Please indicate whether the household's property was damaged"
+      }
+    },
+    "needs": {
+      "FOOD": "Food",
+      "MEDICAL": "Medical",
+      "SHELTER": "Shelter",
+      "CASH": "Cash",
+      "WINTERIZATION": "Winterization"
+    },
+    "vulnerabilities": {
+      "PREGNANT_LACTATING": "Pregnant / Lactating",
+      "CHRONIC_ILLNESS": "Chronic illness",
+      "DISABILITY": "Disability"
+    },
+    "shelterTypes": {
+      "RENTAL": "Rental",
+      "COLLECTIVE_CENTER": "Collective center",
+      "INFORMAL_SETTLEMENT": "Informal settlement",
+      "HOST_FAMILY": "With host family",
+      "PUBLIC_SHELTER": "Collective center"
+    },
+    "shelterContact": {
+      "RENTAL": {
+        "nameLabel": "Rental owner's name",
+        "phoneLabel": "Rental owner's phone"
+      },
+      "COLLECTIVE_CENTER": {
+        "nameLabel": "Center name / manager",
+        "phoneLabel": "Center phone"
+      },
+      "INFORMAL_SETTLEMENT": {
+        "nameLabel": "Contact name",
+        "phoneLabel": "Contact phone"
+      },
+      "HOST_FAMILY": {
+        "nameLabel": "Host family member's name",
+        "phoneLabel": "Host family member's phone"
+      },
+      "PUBLIC_SHELTER": {
+        "nameLabel": "Center name / manager",
+        "phoneLabel": "Center phone"
+      }
+    },
+    "status": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "dashboard": {
+      "refresh": "Refresh",
+      "counters": {
+        "total": "Total registered",
+        "familyMembers": "Total family members",
+        "urgent": "Urgent cases",
+        "pending": "Pending reviews"
+      },
+      "charts": {
+        "needsTitle": "Needs distribution",
+        "needsSubtitle": "How many households selected each urgent need",
+        "locationTitle": "Location breakdown",
+        "locationSubtitle": "Registered households per governorate",
+        "empty": "No data to chart yet.",
+        "households": "{count} household(s)"
+      },
+      "filters": {
+        "title": "Filters",
+        "status": "Status",
+        "governorate": "Governorate",
+        "all": "All",
+        "clear": "Clear filters"
+      },
+      "search": {
+        "label": "Search registrations",
+        "placeholder": "Search by name or phone…",
+        "clear": "Clear search"
+      },
+      "table": {
+        "title": "Registrations",
+        "name": "Registrant",
+        "family": "Family",
+        "membersShort": "{count} member(s)",
+        "governorate": "Governorate",
+        "origin": "Origin",
+        "location": "Current location",
+        "shelter": "Housing",
+        "registrationNumber": "Reg. №",
+        "unregistered": "Unregistered",
+        "propertyDamaged": "Property damaged",
+        "propertyIntact": "No property damage",
+        "income": "Income",
+        "idDocument": "ID",
+        "idDocumentCount": "{count} document(s)",
+        "documentLabel": "Document {index}",
+        "viewId": "View ID",
+        "noId": "No ID",
+        "needs": "Urgent needs",
+        "noNeeds": "None",
+        "status": "Status",
+        "date": "Registered",
+        "actions": "Actions",
+        "edit": "Edit",
+        "view": "View",
+        "approve": "Approve",
+        "reject": "Reject",
+        "backToPending": "Back to pending",
+        "empty": "No registrations match the current filters.",
+        "emptySearch": "No registrations match your search.",
+        "loadError": "Could not load registrations.",
+        "sortAscending": "Sort ascending",
+        "sortDescending": "Sort descending",
+        "sortNone": "Clear sort"
+      },
+      "pagination": {
+        "pageOf": "Page {current} of {total}",
+        "previous": "Previous",
+        "next": "Next",
+        "totalRows": "{count} registration(s)",
+        "rowsPerPage": "Rows per page"
+      },
+      "viewDialog": {
+        "title": "Registration Details",
+        "close": "Close",
+        "edit": "Edit Registration",
+        "notProvided": "Not provided",
+        "notFound": "This registration could not be found."
+      },
+      "editDialog": {
+        "title": "Edit Registration Details",
+        "save": "Save Changes",
+        "cancel": "Cancel",
+        "viewId": "View",
+        "idDocumentsLabel": "Identity Documents",
+        "documentLabel": "Document {index}",
+        "noDocumentsYet": "No documents uploaded yet",
+        "statusLabel": "Triage Status",
+        "fullNameLabel": "Full Name",
+        "phoneLabel": "Phone Number",
+        "familyMembersLabel": "Family Members Count",
+        "familyMembersNamesLabel": "Names of Family Members",
+        "originLabel": "Place of Origin",
+        "registrationNumberLabel": "UNHCR Registration Number",
+        "shelterTypeLabel": "Housing/Shelter Type",
+        "isPropertyDamagedLabel": "Property Damaged?",
+        "incomeLabel": "Primary Source of Income",
+        "entryDateLabel": "Date Entered Lebanon",
+        "displacementDateLabel": "Displacement Date",
+        "success": "Registration updated successfully",
+        "error": "Failed to update registration",
+        "deleteId": "Delete Document",
+        "uploadId": "Upload Document",
+        "uploading": "Uploading...",
+        "confirmDeleteId": "Are you sure you want to delete this document?"
+      }
     }
   },
   "trackReport": {
@@ -372,6 +648,7 @@
     "submittedLabel": "Submitted",
     "currentStatus": "Current status",
     "rejectedNote": "This report was not approved. For details, please contact the municipality with your reference code.",
+    "rejectionNotice": "Note: Please visit the municipality in person to track, resolve, or provide further clarification regarding the rejected part of your application.",
     "steps": {
       "submitted": "Received",
       "underReview": "Under review",

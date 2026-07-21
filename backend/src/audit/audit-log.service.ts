@@ -7,7 +7,11 @@ export type AuditActionType =
   | 'CREATE_STAFF'
   | 'DELETE_STAFF'
   | 'UPDATE_REPORT_STATUS'
-  | 'EXPORT_DATA';
+  | 'UPDATE_DISPLACED_STATUS'
+  | 'VIEW_DISPLACED_RECORD'
+  | 'EDIT_REPORT_DATA'
+  | 'EXPORT_DATA'
+  | 'UPDATE_DISPLACED_REGISTRATION';
 
 export interface AuditEntry {
   adminId: string;
@@ -15,6 +19,8 @@ export interface AuditEntry {
   actionType: AuditActionType;
   targetId: string;
   details: string;
+  /** Arabic counterpart of `details` for dual-language audit rendering. */
+  detailsAr?: string;
   ipAddress?: string;
 }
 
@@ -25,6 +31,7 @@ export interface AuditLogItem {
   actionType: AuditActionType;
   targetId: string;
   details: string;
+  detailsAr: string | null;
   ipAddress: string | null;
   createdAt: string;
 }
@@ -70,6 +77,7 @@ export class AuditLogService {
           actionType: entry.actionType,
           targetId: entry.targetId,
           details: entry.details,
+          detailsAr: entry.detailsAr ?? null,
           ipAddress: entry.ipAddress ?? null,
         },
       });
@@ -91,6 +99,7 @@ export class AuditLogService {
             { actionType: { contains: filter.search, mode: 'insensitive' } },
             { targetId: { contains: filter.search, mode: 'insensitive' } },
             { details: { contains: filter.search, mode: 'insensitive' } },
+            { detailsAr: { contains: filter.search, mode: 'insensitive' } },
           ],
         }
       : {};
@@ -119,6 +128,7 @@ export class AuditLogService {
         actionType: row.actionType as AuditActionType,
         targetId: row.targetId,
         details: row.details,
+        detailsAr: row.detailsAr,
         ipAddress: row.ipAddress,
         createdAt: row.createdAt.toISOString(),
       })),

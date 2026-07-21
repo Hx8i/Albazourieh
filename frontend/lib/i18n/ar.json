@@ -2,6 +2,9 @@
   "common": {
     "appName": "منصة البازورية للتعافي",
     "back": "رجوع",
+    "backToMain": "العودة إلى الصفحة الرئيسية",
+    "close": "إغلاق",
+    "openInNewTab": "فتح في تبويب جديد",
     "next": "التالي",
     "submit": "إرسال البلاغ",
     "loading": "جارٍ التحميل…",
@@ -17,7 +20,25 @@
     "subtitle":
       "بلّغ عن أضرار منزلك أو أرضك أو سيارتك أو محلّك — خطوة بخطوة خلال دقائق.",
     "switchLanguage": "English",
-    "trackExisting": "تتبّع بلاغ موجود"
+    "trackExisting": "تتبّع بلاغ موجود",
+    "displacedHeading": "تسجيل النازحين واللاجئين",
+    "displacedHint": "هل أنتم أسرة نازحة أو لاجئة؟ سجّلوا لطلب المساعدة من البلدية.",
+    "hub": {
+      "title": "خدمات بلدية البازورية",
+      "subtitle": "اختر الخدمة للبدء.",
+      "warDamagesTitle": "تبليغ عن أضرار الحرب",
+      "warDamagesDesc": "بلّغ عن أضرار منزلك أو أرضك أو سيارتك أو محلّك.",
+      "lebaneseTitle": "تسجيل النازحين (اللبنانيين)",
+      "lebaneseDesc": "للأسر اللبنانية النازحة داخل البلاد.",
+      "syrianTitle": "تسجيل اللاجئين (السوريين)",
+      "syrianDesc": "للأسر السورية اللاجئة الراغبة بطلب المساعدة."
+    }
+  },
+  "modules": {
+    "title": "أقسام المنصة",
+    "warDamages": "أضرار الحرب",
+    "syrian": "اللاجئون السوريون",
+    "lebanese": "النازحون اللبنانيون"
   },
   "login": {
     "title": "دخول الموظفين",
@@ -86,12 +107,12 @@
     "lastNameLabel": "اسم العائلة",
     "phoneLabel": "رقم الهاتف",
     "phonePlaceholder": "03 123 456",
-    "nationalIdLabel": "بطاقة الهوية (صورة أو PDF)",
+    "nationalIdLabel": "شيء يعرّف عنك (هوية، إخراج قيد، جواز سفر، دفتر سواقة...) *",
     "residencyProofLabel": "إثبات سكن (فاتورة كهرباء/ماء أو إفادة مختار)",
     "ownershipTitle": "هل أنت مالك أم مستأجر؟",
     "ownerOption": "أنا المالك",
     "tenantOption": "أنا مستأجر",
-    "propertyDeedLabel": "سند الملكية",
+    "propertyDeedLabel": "إثبات ملكية (سند ملكية أو إفادة عقارية أو عقد بيع ممسوح...)",
     "deedOptionalHint": "مطلوب فقط في حال توفره",
     "rentalContractLabel": "عقد الإيجار",
     "vehicleTypeLabel": "نوع الآلية",
@@ -109,6 +130,7 @@
     "ownerPhoneLabel": "رقم هاتف مالك العقار",
     "chooseFile": "اختيار ملف",
     "propertyNumberLabel": "رقم العقار الرسمي",
+    "unitAreaLabel": "مساحة الوحدة (بالمتر المربع)",
     "propertyNumberChecking": "جارٍ التحقق من رقم العقار…",
     "propertyNumberTaken": "رقم العقار هذا مقدَّم مسبقاً وهو قيد التقييم.",
     "propertyNumberOk": "رقم العقار متاح ✓",
@@ -129,13 +151,13 @@
       "streetRequired": "يرجى إدخال الشارع",
       "floorRequired": "يرجى إدخال الطابق",
       "districtRequired": "يرجى إدخال المدينة أو البلدة",
-      "descriptionRequired": "يرجى وصف الضرر كتابةً (10 أحرف على الأقل)",
+      "descriptionRequired": "يرجى وصف الضرر كتابةً (3 أحرف على الأقل)",
       "damagePhotoRequired": "يرجى إرفاق صورة واحدة على الأقل للأضرار",
       "customVehicleTypeRequired": "يرجى تحديد نوع الآلية",
       "locationRequired": "يرجى تحديد موقعك أو وضع الدبوس على الخريطة أولاً",
       "assetRequired": "يرجى اختيار ما الذي تضرّر",
       "severityRequired": "يرجى اختيار حجم الضرر",
-      "nationalIdRequired": "يرجى إرفاق صورة بطاقة الهوية",
+      "nationalIdRequired": "يرجى إرفاق صورة مستند تعريفي",
       "residencyProofRequired": "يرجى إرفاق إثبات السكن",
       "ownershipRequired": "يرجى اختيار مالك أو مستأجر",
       "rentalContractRequired": "على المستأجر إرفاق عقد الإيجار",
@@ -143,7 +165,9 @@
       "propertyNumberRequired": "يرجى إدخال رقم العقار الرسمي",
       "propertyNumberNumeric": "يجب أن يحتوي رقم العقار على أرقام فقط",
       "fileTooLarge": "حجم هذا الملف كبير جداً",
-      "uploadTooLarge": "الصور والمستندات كبيرة جداً لإرسالها معاً. يرجى حذف بعض الصور أو إرفاق ملفات أصغر ثم المحاولة مرة أخرى."
+      "uploadTooLarge": "الصور والمستندات كبيرة جداً لإرسالها معاً. يرجى حذف بعض الصور أو إرفاق ملفات أصغر ثم المحاولة مرة أخرى.",
+      "unitAreaRequired": "يرجى إدخال مساحة الوحدة السكنية",
+      "unitAreaPositive": "يجب أن تكون المساحة رقماً صحيحاً موجباً"
     }
   },
   "portalNav": {
@@ -312,6 +336,10 @@
       "CREATE_STAFF": "أنشأ حساب موظف",
       "DELETE_STAFF": "ألغى حساب موظف",
       "UPDATE_REPORT_STATUS": "غيّر حالة بلاغ",
+      "UPDATE_DISPLACED_STATUS": "غيّر حالة تسجيل نزوح/لجوء",
+      "UPDATE_DISPLACED_REGISTRATION": "عدّل تسجيل نزوح/لجوء",
+      "VIEW_DISPLACED_RECORD": "اطّلع على سجل نزوح/لجوء",
+      "EDIT_REPORT_DATA": "عدّل بيانات بلاغ",
       "EXPORT_DATA": "صدّر بيانات"
     },
     "empty": "لا توجد إجراءات إدارية مسجَّلة بعد.",
@@ -346,6 +374,14 @@
     "rejectionReason": "سبب الرفض",
     "rejectReasonLabel": "لماذا يُرفض هذا البلاغ؟",
     "rejectReasonPlaceholder": "٥ أحرف على الأقل…",
+    "rejectFieldLabel": "الحقل المرفوض",
+    "rejectFieldPlaceholder": "اختر الحقل الذي تسبب في الرفض…",
+    "rejectedFields": {
+      "Name": "الاسم",
+      "Address": "العنوان",
+      "Description": "وصف الضرر",
+      "Media": "المرفقات والأدلة"
+    },
     "confirmReject": "تأكيد الرفض",
     "reviewedBy": "يُسجَّل اسم المراجع تلقائياً من حسابك.",
     "ownership": "صفة الإشغال",
@@ -360,6 +396,246 @@
       "RENTAL_CONTRACT": "عقد الإيجار",
       "VEHICLE_REGISTRATION": "أوراق الآلية",
       "RESIDENCY_PROOF": "إثبات السكن"
+    },
+    "editMode": "وضع التعديل",
+    "editModeToggle": "تعديل البيانات",
+    "saveChanges": "حفظ التعديلات",
+    "cancelEdit": "إلغاء",
+    "saving": "جارٍ حفظ التعديلات…",
+    "editSuccess": "تم حفظ التعديلات بنجاح.",
+    "unitArea": "مساحة الوحدة السكنية (م²)",
+    "deleteAttachment": "حذف المرفق",
+    "addDocument": "إضافة مستند",
+    "confirmDeleteAttachment": "هل أنت متأكد من حذف هذا المرفق؟ لا يمكن التراجع."
+  },
+  "displaced": {
+    "syrian": {
+      "formTitle": "تسجيل اللاجئين السوريين",
+      "formSubtitle": "سجّل أسرة سورية لاجئة لطلب المساعدة من البلدية.",
+      "dashboardTitle": "لوحة اللاجئين السوريين",
+      "dashboardSubtitle": "الأسر السورية اللاجئة المسجلة — البازورية",
+      "originLabel": "المدينة الأصلية في سوريا",
+      "originPlaceholder": "مثال: حلب",
+      "dateLabel": "تاريخ الدخول إلى لبنان"
+    },
+    "lebanese": {
+      "formTitle": "تسجيل النازحين اللبنانيين",
+      "formSubtitle": "سجّل أسرة لبنانية نازحة لطلب المساعدة من البلدية.",
+      "dashboardTitle": "لوحة النازحين اللبنانيين",
+      "dashboardSubtitle": "الأسر اللبنانية النازحة المسجلة — البازورية",
+      "originLabel": "قرية الأصل في لبنان",
+      "originPlaceholder": "مثال: عيتا الشعب",
+      "dateLabel": "تاريخ النزوح"
+    },
+    "form": {
+      "identitySection": "الهوية والتواصل",
+      "fullNameLabel": "الاسم الكامل",
+      "phoneLabel": "رقم الهاتف",
+      "phonePlaceholder": "03 123 456",
+      "idLabel": "مستند إثبات الهوية (بطاقة هوية، جواز سفر، أو إخراج قيد)",
+      "idHint": "صورة أو ملف PDF",
+      "householdSection": "الأسرة والموقع",
+      "familyMembersLabel": "عدد أفراد الأسرة",
+      "familyMembersNamesLabel": "أسماء جميع أفراد الأسرة",
+      "familyMembersNamesPlaceholder": "يرجى كتابة الاسم الكامل لكل فرد من أفراد الأسرة...",
+      "alternatePhoneLabel": "رقم هاتف بديل",
+      "vulnerabilityLabel": "حالات الضعف والهشاشة",
+      "locationSection": "مكان الإقامة الحالي",
+      "governorateLabel": "المحافظة الحالية",
+      "governoratePlaceholder": "اختر المحافظة…",
+      "districtLabel": "القضاء / المدينة",
+      "districtPlaceholder": "مثال: صور",
+      "neighborhoodLabel": "الحي",
+      "neighborhoodPlaceholder": "مثال: البازورية",
+      "buildingLabel": "اسم أو رقم المبنى",
+      "buildingPlaceholder": "مثال: مبنى السلام",
+      "landlordPhoneLabel": "رقم هاتف المالك",
+      "registrationNumberLabel": "رقم تسجيل المفوضية (UNHCR)",
+      "registrationNumberHint": "اتركه فارغاً إذا لم تكن مسجلاً",
+      "shelterTypeLabel": "نوع السكن الحالي",
+      "shelterTypePlaceholder": "اختر نوع السكن…",
+      "propertyDamagedLabel": "هل تضرر عقار الأسرة؟",
+      "incomeLabel": "مصدر الدخل الأساسي",
+      "incomePlaceholder": "مثال: عمل يومي، زراعة…",
+      "needsSection": "الاحتياجات العاجلة",
+      "needsHint": "اختر كل ما تحتاجه الأسرة بشكل عاجل.",
+      "submit": "إرسال التسجيل",
+      "submitting": "جارٍ الإرسال…",
+      "successTitle": "تم استلام تسجيلكم!",
+      "successBody": "ستقوم البلدية بمراجعة التسجيل. يرجى إبقاء هاتفكم متاحاً.",
+      "successToast": "تم إرسال التسجيل بنجاح",
+      "registerAnother": "تسجيل أسرة أخرى",
+      "errorTitle": "تعذر إرسال التسجيل",
+      "errors": {
+        "fullNameRequired": "يرجى إدخال الاسم الكامل (3 أحرف على الأقل)",
+        "invalidPhone": "يرجى إدخال رقم هاتف صحيح",
+        "invalidAlternatePhone": "يرجى إدخال رقم هاتف بديل صحيح",
+        "familyMembersRequired": "يرجى إدخال عدد أفراد الأسرة (بين 1 و50)",
+        "familyMembersNamesRequired": "يرجى كتابة أسماء جميع أفراد الأسرة",
+        "neighborhoodRequired": "يرجى إدخال الحي",
+        "buildingRequired": "يرجى إدخال اسم أو رقم المبنى",
+        "shelterTypeRequired": "يرجى اختيار نوع السكن",
+        "shelterContactNameRequired": "يرجى إدخال اسم الشخص المسؤول",
+        "shelterContactPhoneRequired": "يرجى إدخال رقم هاتف صحيح للتواصل",
+        "originRequired": "يرجى إدخال مكان الأصل",
+        "dateRequired": "يرجى اختيار تاريخ صحيح (ليس في المستقبل)",
+        "needsRequired": "يرجى اختيار حاجة عاجلة واحدة على الأقل",
+        "idRequired": "يرجى إرفاق صورة عن مستند يثبت الهوية",
+        "fileTooLarge": "حجم الملف كبير جداً. يرجى إرفاق ملف أصغر من 4 ميغابايت.",
+        "propertyDamagedRequired": "يرجى تحديد ما إذا كان عقار الأسرة قد تضرر"
+      }
+    },
+    "needs": {
+      "FOOD": "غذاء",
+      "MEDICAL": "طبابة",
+      "SHELTER": "مأوى",
+      "CASH": "مساعدة نقدية",
+      "WINTERIZATION": "تجهيزات شتوية"
+    },
+    "vulnerabilities": {
+      "PREGNANT_LACTATING": "حامل / مرضعة",
+      "CHRONIC_ILLNESS": "مرض مزمن",
+      "DISABILITY": "إعاقة"
+    },
+    "shelterTypes": {
+      "RENTAL": "سكن مستأجر",
+      "COLLECTIVE_CENTER": "مركز إيواء جماعي",
+      "INFORMAL_SETTLEMENT": "تجمع عشوائي",
+      "HOST_FAMILY": "لدى عائلة مضيفة",
+      "PUBLIC_SHELTER": "مركز إيواء جماعي"
+    },
+    "shelterContact": {
+      "RENTAL": {
+        "nameLabel": "اسم مالك العقار",
+        "phoneLabel": "هاتف مالك العقار"
+      },
+      "COLLECTIVE_CENTER": {
+        "nameLabel": "اسم المركز / المسؤول",
+        "phoneLabel": "هاتف المركز"
+      },
+      "INFORMAL_SETTLEMENT": {
+        "nameLabel": "اسم جهة التواصل",
+        "phoneLabel": "هاتف جهة التواصل"
+      },
+      "HOST_FAMILY": {
+        "nameLabel": "اسم أحد أفراد العائلة المضيفة",
+        "phoneLabel": "هاتف أحد أفراد العائلة المضيفة"
+      },
+      "PUBLIC_SHELTER": {
+        "nameLabel": "اسم المركز / المسؤول",
+        "phoneLabel": "هاتف المركز"
+      }
+    },
+    "status": {
+      "PENDING": "قيد الانتظار",
+      "APPROVED": "مقبول",
+      "REJECTED": "مرفوض"
+    },
+    "dashboard": {
+      "refresh": "تحديث",
+      "counters": {
+        "total": "إجمالي المسجلين",
+        "familyMembers": "إجمالي أفراد الأسر",
+        "urgent": "حالات عاجلة",
+        "pending": "بانتظار المراجعة"
+      },
+      "charts": {
+        "needsTitle": "توزيع الاحتياجات",
+        "needsSubtitle": "عدد الأسر التي اختارت كل حاجة عاجلة",
+        "locationTitle": "التوزيع الجغرافي",
+        "locationSubtitle": "الأسر المسجلة حسب المحافظة",
+        "empty": "لا بيانات لعرضها بعد.",
+        "households": "{count} أسرة"
+      },
+      "filters": {
+        "title": "التصفية",
+        "status": "الحالة",
+        "governorate": "المحافظة",
+        "all": "الكل",
+        "clear": "مسح التصفية"
+      },
+      "search": {
+        "label": "البحث في التسجيلات",
+        "placeholder": "ابحث بالاسم أو رقم الهاتف…",
+        "clear": "مسح البحث"
+      },
+      "table": {
+        "title": "التسجيلات",
+        "name": "المسجِّل",
+        "family": "الأسرة",
+        "membersShort": "{count} أفراد",
+        "governorate": "المحافظة",
+        "origin": "الأصل",
+        "location": "مكان الإقامة",
+        "shelter": "السكن",
+        "registrationNumber": "رقم التسجيل",
+        "unregistered": "غير مسجل",
+        "propertyDamaged": "عقار متضرر",
+        "propertyIntact": "لا أضرار بالعقار",
+        "income": "الدخل",
+        "idDocument": "الهوية",
+        "idDocumentCount": "{count} مستند",
+        "documentLabel": "مستند {index}",
+        "viewId": "عرض الهوية",
+        "noId": "لا مستند",
+        "needs": "الاحتياجات العاجلة",
+        "noNeeds": "لا شيء",
+        "status": "الحالة",
+        "date": "تاريخ التسجيل",
+        "actions": "الإجراءات",
+        "edit": "تعديل",
+        "view": "عرض",
+        "approve": "قبول",
+        "reject": "رفض",
+        "backToPending": "إعادة إلى الانتظار",
+        "empty": "لا توجد تسجيلات مطابقة للتصفية الحالية.",
+        "emptySearch": "لا توجد تسجيلات مطابقة لبحثك.",
+        "loadError": "تعذّر تحميل التسجيلات.",
+        "sortAscending": "ترتيب تصاعدي",
+        "sortDescending": "ترتيب تنازلي",
+        "sortNone": "إلغاء الترتيب"
+      },
+      "pagination": {
+        "pageOf": "الصفحة {current} من {total}",
+        "previous": "السابق",
+        "next": "التالي",
+        "totalRows": "{count} تسجيل",
+        "rowsPerPage": "صفوف لكل صفحة"
+      },
+      "viewDialog": {
+        "title": "تفاصيل التسجيل",
+        "close": "إغلاق",
+        "edit": "تعديل التسجيل",
+        "notProvided": "غير متوفر",
+        "notFound": "لم يتم العثور على هذا التسجيل."
+      },
+      "editDialog": {
+        "title": "تعديل تفاصيل التسجيل",
+        "save": "حفظ التغييرات",
+        "cancel": "إلغاء",
+        "viewId": "عرض",
+        "idDocumentsLabel": "مستندات الهوية",
+        "documentLabel": "مستند {index}",
+        "noDocumentsYet": "لا توجد مستندات مرفوعة بعد",
+        "statusLabel": "حالة التدقيق",
+        "fullNameLabel": "الاسم الكامل",
+        "phoneLabel": "رقم الهاتف",
+        "familyMembersLabel": "عدد أفراد الأسرة",
+        "familyMembersNamesLabel": "أسماء أفراد الأسرة",
+        "originLabel": "مكان الأصل",
+        "registrationNumberLabel": "رقم تسجيل المفوضية (UNHCR)",
+        "shelterTypeLabel": "نوع السكن الحالي",
+        "isPropertyDamagedLabel": "هل تضرر عقار الأسرة؟",
+        "incomeLabel": "مصدر الدخل الأساسي",
+        "entryDateLabel": "تاريخ دخول لبنان",
+        "displacementDateLabel": "تاريخ النزوح",
+        "success": "تم تحديث التسجيل بنجاح",
+        "error": "فشل تحديث التسجيل",
+        "deleteId": "حذف المستند",
+        "uploadId": "تحميل مستند الهوية",
+        "uploading": "جاري الرفع...",
+        "confirmDeleteId": "هل أنت متأكد من حذف مستند الهوية هذا؟"
+      }
     }
   },
   "trackReport": {
@@ -379,6 +655,7 @@
     "submittedLabel": "تاريخ التقديم",
     "currentStatus": "الحالة الحالية",
     "rejectedNote": "لم تتم الموافقة على هذا البلاغ. لمزيد من التفاصيل، يرجى مراجعة البلدية مع رمزك المرجعي.",
+    "rejectionNotice": "ملاحظة: يرجى مراجعة البلدية شخصياً لمتابعة أو حل أو تقديم توضيحات إضافية بشأن الجزء المرفوض من طلبكم.",
     "steps": {
       "submitted": "تم الاستلام",
       "underReview": "قيد التدقيق",

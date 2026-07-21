@@ -19,9 +19,12 @@ export type DomainErrorCode =
   | 'INVALID_FILE'
   | 'PROPERTY_NUMBER_TAKEN'
   | 'MISSING_REQUIRED_FILE'
+  | 'TOO_MANY_ID_DOCUMENTS'
+  | 'DISPLACED_NOT_FOUND'
   | 'STAFF_NOT_FOUND'
   | 'STAFF_EMAIL_TAKEN'
-  | 'PROTECTED_STAFF_ACCOUNT';
+  | 'PROTECTED_STAFF_ACCOUNT'
+  | 'CONCURRENT_UPDATE';
 
 /** Bilingual user-facing message pair. */
 export interface LocalizedMessage {
@@ -136,6 +139,44 @@ export class MissingRequiredFileError extends DomainError {
     super({
       en: `The required file "${field}" is missing from the submission`,
       ar: `المستند المطلوب "${field}" غير مرفق بالطلب`,
+    });
+  }
+}
+
+export class TooManyIdDocumentsError extends DomainError {
+  readonly code = 'TOO_MANY_ID_DOCUMENTS';
+
+  constructor(limit: number) {
+    super({
+      en: `A registration can carry at most ${limit} identity documents`,
+      ar: `لا يمكن أن يحمل التسجيل أكثر من ${limit} مستندات هوية`,
+    });
+  }
+}
+
+export class DisplacedRegistrationNotFoundError extends DomainError {
+  readonly code = 'DISPLACED_NOT_FOUND';
+
+  constructor(id: string) {
+    super({
+      en: `Displaced registration "${id}" was not found`,
+      ar: `لم يتم العثور على التسجيل "${id}"`,
+    });
+  }
+}
+
+/**
+ * Raised when a read-modify-write on a shared row (e.g. the id-document
+ * list) loses a race against another concurrent update after every
+ * retry — the caller should refetch and try again.
+ */
+export class ConcurrentUpdateError extends DomainError {
+  readonly code = 'CONCURRENT_UPDATE';
+
+  constructor() {
+    super({
+      en: 'This record was updated by someone else at the same time. Please try again.',
+      ar: 'تم تعديل هذا السجل من قبل شخص آخر في نفس الوقت. يرجى المحاولة مرة أخرى.',
     });
   }
 }

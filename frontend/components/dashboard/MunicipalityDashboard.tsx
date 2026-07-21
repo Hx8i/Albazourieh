@@ -7,6 +7,7 @@ import { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table"
 import { Download, FileText, ImageOff, Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DocumentViewerDialog } from "@/components/DocumentViewerDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable, DataTableLabels } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,9 @@ export function MunicipalityDashboard({
   const queryClient = useQueryClient();
 
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+  // In-site preview for evidence photos/documents in the expanded rows.
+  const [viewerUrl, setViewerUrl] = React.useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = React.useState("");
   // Report awaiting a rejection reason in the modal (null = modal closed).
   const [rejectTarget, setRejectTarget] =
     React.useState<ReportListItem | null>(null);
@@ -635,11 +639,19 @@ export function MunicipalityDashboard({
             renderSubRow={(row) => (
               <div className="flex flex-wrap gap-3 py-2">
                 {row.original.attachments.map((attachment) => (
-                  <a
+                  <button
                     key={attachment.id}
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
+                    type="button"
+                    onClick={() => {
+                      setViewerTitle(
+                        (attachment.label &&
+                          (dict.detail.attachmentLabels as Record<string, string>)[
+                            attachment.label
+                          ]) ||
+                          row.original.referenceCode,
+                      );
+                      setViewerUrl(attachment.url);
+                    }}
                     title={t.table.openFullSize}
                     className="block h-24 w-24 overflow-hidden rounded-md border bg-background"
                   >
@@ -649,7 +661,7 @@ export function MunicipalityDashboard({
                       className="h-full w-full object-cover"
                       loading="lazy"
                     />
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -677,6 +689,13 @@ export function MunicipalityDashboard({
         }}
         onConfirm={(reason) => void confirmReject(reason)}
         onClose={closeRejectDialog}
+      />
+
+      <DocumentViewerDialog
+        dict={dict}
+        url={viewerUrl}
+        title={viewerTitle}
+        onClose={() => setViewerUrl(null)}
       />
     </div>
   );

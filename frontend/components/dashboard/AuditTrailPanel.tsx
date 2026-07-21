@@ -19,6 +19,10 @@ const ACTION_BADGE_CLASS: Record<AuditActionType, string> = {
   CREATE_STAFF: 'bg-emerald-500/10 text-emerald-700',
   DELETE_STAFF: 'bg-red-500/10 text-red-700',
   UPDATE_REPORT_STATUS: 'bg-blue-500/10 text-blue-700',
+  UPDATE_DISPLACED_STATUS: 'bg-teal-500/10 text-teal-700',
+  UPDATE_DISPLACED_REGISTRATION: 'bg-cyan-500/10 text-cyan-700',
+  VIEW_DISPLACED_RECORD: 'bg-slate-500/10 text-slate-700',
+  EDIT_REPORT_DATA: 'bg-purple-500/10 text-purple-700',
   EXPORT_DATA: 'bg-amber-500/10 text-amber-700',
 };
 
@@ -70,7 +74,9 @@ export function AuditTrailPanel({
 
   /** Short, readable target reference (reports are UUIDs — clip them). */
   const targetLabel = (item: AuditLogItem): string =>
-    item.actionType === 'UPDATE_REPORT_STATUS'
+    item.actionType === 'UPDATE_REPORT_STATUS' ||
+    item.actionType === 'UPDATE_DISPLACED_STATUS' ||
+    item.actionType === 'EDIT_REPORT_DATA'
       ? `#${item.targetId.slice(0, 8)}`
       : item.targetId.length > 24
         ? `${item.targetId.slice(0, 24)}…`
@@ -134,11 +140,14 @@ export function AuditTrailPanel({
         header: t.colDetails,
         enableSorting: false,
         meta: { cellClassName: 'max-w-[280px] text-sm text-muted-foreground' },
-        cell: ({ row }) => (
-          <span dir="auto" className="block truncate" title={row.original.details}>
-            {row.original.details}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const displayDetails = locale === 'ar' && row.original.detailsAr ? row.original.detailsAr : row.original.details;
+          return (
+            <span dir="auto" className="block truncate" title={displayDetails}>
+              {displayDetails}
+            </span>
+          );
+        },
       },
       {
         id: 'createdAt',

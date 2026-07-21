@@ -56,6 +56,19 @@ enum AttachmentType {
   DOCUMENT
 }
 
+/// Simple intake triage for displaced-person registrations (both the
+/// Syrian and Lebanese programmes share the same three-state lifecycle).
+enum DisplacedStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Shelter type is stored as a plain string (validated by per-audience Zod
+// enums at the API layer) — the two programmes offer *different* shelter
+// options, so no shared Postgres enum fits, mirroring how
+// currentGovernorate is a Zod-validated string rather than a DB enum.
+
 enum Language {
   AR
   EN
@@ -102,6 +115,8 @@ model Property {
   street               String?          @db.VarChar(120)
   projectName          String?          @db.VarChar(120)
   floor                String?          @db.VarChar(30)
+  /// Unit area in square metres — mandatory for HOUSE/SHOP/APARTMENT.
+  unitArea             Int?
   additionalDirections String?          @db.VarChar(255)
   addressLine          String?          @db.VarChar(255)
   latitude             Float
@@ -130,7 +145,16 @@ model DamageReport {
   status          ReportStatus   @default(PENDING)
   severity        DamageSeverity
   rejectionReason String?
+  rejectedField   String?        @db.VarChar(100)
   reporterId      String         @db.Uuid
+  /// Per-report override of the reporter's display name, set by admin
+  /// edits (damage-report.dto.ts AdminEditReportDto). Kept here instead
+  /// of on the shared User row so correcting one report's reporter info
+  /// never relabels that citizen's other reports.
+  reporterNameOverride  String?  @db.VarChar(120)
+  /// Per-report override of the reporter's display phone — same
+  /// rationale as reporterNameOverride.
+  reporterPhoneOverride String?  @db.VarChar(20)
   propertyId      String         @db.Uuid
   reviewedById    String?        @db.Uuid
   createdAt       DateTime       @default(now())
@@ -198,6 +222,8 @@ model AuditLog {
   actionType String   @db.VarChar(40)
   targetId   String   @db.VarChar(60)
   details    String
+  /// Arabic counterpart of `details` for dual-language audit rendering.
+  detailsAr  String?
   ipAddress  String?  @db.VarChar(45)
   createdAt  DateTime @default(now())
 
@@ -206,6 +232,88 @@ model AuditLog {
   @@index([createdAt])
   @@index([adminId])
   @@map("audit_logs")
+}
+
+/// One registered Syrian displaced household ("لاجئين"). Deliberately
+/// standalone — never joined with Lebanese registrations or damage
+/// reports so each programme's analytics stay isolated.
+model SyrianDisplaced {
+  id                  String          @id @default(uuid()) @db.Uuid
+  fullName            String          @db.VarChar(120)
+  phone               String          @db.VarChar(20)
+  /// Emergency fallback contact number.
+  alternatePhone      String?         @db.VarChar(20)
+  familyMembersCount  Int
+  /// Full names of all family members.
+  familyMembersNames  String          @default("") @db.VarChar(1000)
+  /// Current location in Lebanon (free text).
+  neighborhoodName    String          @db.VarChar(120)
+  buildingName        String          @db.VarChar(120)
+  shelterType         String          @db.VarChar(40)
+  /// Contextual shelter contact (rental owner / collective-centre manager),
+  /// required unless shelterType is INFORMAL_SETTLEMENT — enforced at the
+  /// API layer.
+  shelterContactName  String?         @db.VarChar(120)
+  shelterContactPhone String?         @db.VarChar(20)
+  /// City/town of origin in Syria.
+  originalCity        String          @db.VarChar(120)
+  /// UNHCR / government registration number — absent when unregistered.
+  registrationNumber  String?         @db.VarChar(60)
+  /// Identity document(s) (ID card / passport photo or PDF) proving who
+  /// is registering — streamed to Supabase Storage, URLs kept here.
+  idDocumentUrls      String[]        @default([])
+  /// Selected urgent needs (FOOD/MEDICAL/SHELTER/CASH/WINTERIZATION).
+  urgentNeeds         String[]
+  /// Optional vulnerability flags (PREGNANT_LACTATING/CHRONIC_ILLNESS/DISABILITY).
+  vulnerabilityStatus String[]        @default([])
+  /// Date the household entered Lebanon.
+  entryDate           DateTime        @db.Date
+  status              DisplacedStatus @default(PENDING)
+  createdAt           DateTime        @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("syrian_displaced")
+}
+
+/// One registered internally-displaced Lebanese household ("نازحين").
+model LebaneseDisplaced {
+  id                    String          @id @default(uuid()) @db.Uuid
+  fullName              String          @db.VarChar(120)
+  phone                 String          @db.VarChar(20)
+  /// Emergency fallback contact number.
+  alternatePhone        String?         @db.VarChar(20)
+  familyMembersCount    Int
+  /// Full names of all family members.
+  familyMembersNames    String          @default("") @db.VarChar(1000)
+  /// Current location in Lebanon (free text).
+  neighborhoodName      String          @db.VarChar(120)
+  buildingName          String          @db.VarChar(120)
+  shelterType           String          @db.VarChar(40)
+  /// Contextual shelter contact (rental owner / collective-centre manager /
+  /// host-family member), required for every Lebanese shelter type —
+  /// enforced at the API layer.
+  shelterContactName    String?         @db.VarChar(120)
+  shelterContactPhone   String?         @db.VarChar(20)
+  /// Village of origin in Lebanon the household was displaced from.
+  originVillage         String          @db.VarChar(120)
+  isPropertyDamaged     Boolean         @default(false)
+  primarySourceOfIncome String?         @db.VarChar(120)
+  /// Identity document(s) (ID card / passport photo or PDF) proving who
+  /// is registering — streamed to Supabase Storage, URLs kept here.
+  idDocumentUrls        String[]        @default([])
+  /// Selected urgent needs (FOOD/MEDICAL/SHELTER/CASH/WINTERIZATION).
+  urgentNeeds           String[]
+  /// Optional vulnerability flags (PREGNANT_LACTATING/CHRONIC_ILLNESS/DISABILITY).
+  vulnerabilityStatus   String[]        @default([])
+  /// Date the household was displaced from its village.
+  displacementDate      DateTime        @db.Date
+  status                DisplacedStatus @default(PENDING)
+  createdAt             DateTime        @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("lebanese_displaced")
 }
 
 /// Audit trail of official engineer field visits.

@@ -1,0 +1,720 @@
+'use client';
+
+import * as React from 'react';
+import { Loader2, TriangleAlert, X, FileText, Trash2, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
+import { DocumentViewerDialog } from '@/components/DocumentViewerDialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DisplacedAudience,
+  DisplacedItem,
+  DisplacedStatus,
+  LEBANESE_SHELTER_TYPES,
+  LebaneseDisplacedItem,
+  LebaneseShelterType,
+  MAX_ID_DOCUMENTS_PER_REGISTRATION,
+  SHELTER_WITHOUT_CONTACT,
+  SYRIAN_SHELTER_TYPES,
+  SyrianDisplacedItem,
+  SyrianShelterType,
+  ShelterType,
+  VULNERABILITIES,
+  Vulnerability,
+} from '@/lib/schemas/displaced.schema';
+import {
+  useUpdateDisplacedStatusMutation,
+  useUpdateLebaneseDisplacedMutation,
+  useUpdateSyrianDisplacedMutation,
+  useUploadDisplacedIdDocumentsMutation,
+  useDeleteDisplacedIdDocumentMutation,
+} from '@/lib/queries';
+import { Dictionary, Locale, fill } from '@/lib/i18n/dictionaries';
+
+interface DisplacedEditDialogProps {
+  open: boolean;
+  audience: DisplacedAudience;
+  item: DisplacedItem | null;
+  dict: Dictionary;
+  locale: Locale;
+  onClose: () => void;
+}
+
+export function DisplacedEditDialog({
+  open,
+  audience,
+  item,
+  dict,
+  locale,
+  onClose,
+}: DisplacedEditDialogProps): React.JSX.Element | null {
+  const t = dict.displaced;
+  const tEdit = t.dashboard.editDialog;
+
+  const updateSyrian = useUpdateSyrianDisplacedMutation();
+  const updateLebanese = useUpdateLebaneseDisplacedMutation();
+  const updateStatus = useUpdateDisplacedStatusMutation(audience);
+  const uploadIdMutation = useUploadDisplacedIdDocumentsMutation(audience);
+  const deleteIdMutation = useDeleteDisplacedIdDocumentMutation(audience);
+  const addDocumentInputRef = React.useRef<HTMLInputElement>(null);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
+  const titleId = 'displaced-edit-dialog-title';
+
+  const isPending =
+    updateSyrian.isPending ||
+    updateLebanese.isPending ||
+    updateStatus.isPending ||
+    uploadIdMutation.isPending ||
+    deleteIdMutation.isPending;
+
+  const [error, setError] = React.useState<string | null>(null);
+  // In-site preview for the attached identity documents.
+  const [viewerUrl, setViewerUrl] = React.useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = React.useState('');
+
+  // Form State — shared
+  const [fullName, setFullName] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [alternatePhone, setAlternatePhone] = React.useState('');
+  const [familyMembersCount, setFamilyMembersCount] = React.useState('');
+  const [familyMembersNames, setFamilyMembersNames] = React.useState('');
+  const [neighborhoodName, setNeighborhoodName] = React.useState('');
+  const [buildingName, setBuildingName] = React.useState('');
+  const [shelterType, setShelterType] = React.useState<ShelterType | ''>('');
+  const [shelterContactName, setShelterContactName] = React.useState('');
+  const [shelterContactPhone, setShelterContactPhone] = React.useState('');
+  const [vulnerabilities, setVulnerabilities] = React.useState<Vulnerability[]>([]);
+  const [status, setStatus] = React.useState<DisplacedStatus>('PENDING');
+  const [idDocumentUrls, setIdDocumentUrls] = React.useState<string[]>([]);
+
+  // Syrian specific
+  const [originalCity, setOriginalCity] = React.useState('');
+  const [registrationNumber, setRegistrationNumber] = React.useState('');
+  const [entryDate, setEntryDate] = React.useState('');
+
+  // Lebanese specific
+  const [originVillage, setOriginVillage] = React.useState('');
+  const [isPropertyDamaged, setIsPropertyDamaged] = React.useState<boolean>(false);
+  const [primarySourceOfIncome, setPrimarySourceOfIncome] = React.useState('');
+  const [displacementDate, setDisplacementDate] = React.useState('');
+
+  const shelterOptions: readonly (SyrianShelterType | LebaneseShelterType)[] =
+    audience === 'syrian' ? SYRIAN_SHELTER_TYPES : LEBANESE_SHELTER_TYPES;
+  const needsContact =
+    shelterType !== '' && shelterType !== SHELTER_WITHOUT_CONTACT;
+
+  // Load state when item is set
+  React.useEffect(() => {
+    if (item && open) {
+      setError(null);
+      setFullName(item.fullName);
+      setPhone(item.phone);
+      setAlternatePhone(item.alternatePhone ?? '');
+      setFamilyMembersCount(String(item.familyMembersCount));
+      setFamilyMembersNames(item.familyMembersNames);
+      setNeighborhoodName(item.neighborhoodName);
+      setBuildingName(item.buildingName);
+      setShelterType(item.shelterType);
+      setShelterContactName(item.shelterContactName ?? '');
+      setShelterContactPhone(item.shelterContactPhone ?? '');
+      setVulnerabilities(item.vulnerabilityStatus);
+      setStatus(item.status);
+      setIdDocumentUrls(item.idDocumentUrls);
+
+      if (audience === 'syrian') {
+        const syrian = item as SyrianDisplacedItem;
+        setOriginalCity(syrian.originalCity);
+        setRegistrationNumber(syrian.registrationNumber ?? '');
+        setEntryDate(syrian.entryDate ? syrian.entryDate.slice(0, 10) : '');
+      } else {
+        const lebanese = item as LebaneseDisplacedItem;
+        setOriginVillage(lebanese.originVillage);
+        setIsPropertyDamaged(lebanese.isPropertyDamaged);
+        setPrimarySourceOfIncome(lebanese.primarySourceOfIncome ?? '');
+        setDisplacementDate(lebanese.displacementDate ? lebanese.displacementDate.slice(0, 10) : '');
+      }
+    }
+  }, [item, open, audience]);
+
+  const toggleVulnerability = (flag: Vulnerability): void => {
+    setVulnerabilities((previous) =>
+      previous.includes(flag)
+        ? previous.filter((item) => item !== flag)
+        : [...previous, flag],
+    );
+  };
+
+  // Lock body scroll, trap focus and restore it to the trigger on close.
+  React.useEffect(() => {
+    if (!open) return;
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const focusableSelector =
+      'a[href], button:not([disabled]):not([tabindex="-1"]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const getFocusable = (): HTMLElement[] =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
+      );
+
+    // Defer so the dialog's own DOM has committed before we move focus.
+    const focusHandle = window.setTimeout(() => {
+      getFocusable()[0]?.focus();
+    }, 0);
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        if (!isPending) onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.clearTimeout(focusHandle);
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus?.();
+    };
+  }, [open, isPending, onClose]);
+
+  if (!open || !item) return null;
+
+  const handleUploadFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (files.length === 0) return;
+    setError(null);
+
+    try {
+      const res = await uploadIdMutation.mutateAsync({ id: item.id, files });
+      setIdDocumentUrls(res.idDocumentUrls);
+    } catch (err: any) {
+      setError(err?.message || tEdit.error);
+    }
+  };
+
+  const handleDeleteFile = async (url: string) => {
+    if (!window.confirm(tEdit.confirmDeleteId)) return;
+    setError(null);
+
+    try {
+      const res = await deleteIdMutation.mutateAsync({ id: item.id, url });
+      setIdDocumentUrls(res.idDocumentUrls);
+    } catch (err: any) {
+      setError(err?.message || tEdit.error);
+    }
+  };
+
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+
+    const commonPayload = {
+      fullName: fullName.trim(),
+      phone: phone.trim(),
+      alternatePhone: alternatePhone.trim() || undefined,
+      familyMembersCount: parseInt(familyMembersCount, 10) || 1,
+      familyMembersNames: familyMembersNames.trim(),
+      neighborhoodName: neighborhoodName.trim(),
+      buildingName: buildingName.trim(),
+      shelterContactName: needsContact
+        ? shelterContactName.trim() || undefined
+        : undefined,
+      shelterContactPhone: needsContact
+        ? shelterContactPhone.trim() || undefined
+        : undefined,
+      vulnerabilityStatus: vulnerabilities,
+    };
+
+    try {
+      if (audience === 'syrian') {
+        const payload = {
+          ...commonPayload,
+          shelterType: shelterType as SyrianShelterType,
+          originalCity: originalCity.trim(),
+          registrationNumber: registrationNumber.trim() || undefined,
+          entryDate: entryDate || undefined,
+        };
+        await updateSyrian.mutateAsync({ id: item.id, payload });
+      } else {
+        const payload = {
+          ...commonPayload,
+          shelterType: shelterType as LebaneseShelterType,
+          originVillage: originVillage.trim(),
+          isPropertyDamaged,
+          primarySourceOfIncome: primarySourceOfIncome.trim() || undefined,
+          displacementDate: displacementDate || undefined,
+        };
+        await updateLebanese.mutateAsync({ id: item.id, payload });
+      }
+      // Status moves through the dedicated status endpoint (its own audit
+      // action + trail entry) rather than the generic edit payload.
+      if (status !== item.status) {
+        await updateStatus.mutateAsync({ id: item.id, status });
+      }
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || tEdit.error);
+    }
+  };
+
+  return (
+    <div
+      ref={dialogRef}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
+      <button
+        type="button"
+        tabIndex={-1}
+        className="absolute inset-0 h-full w-full cursor-default bg-transparent"
+        onClick={() => {
+          if (!isPending) onClose();
+        }}
+        aria-label={dict.displaced.dashboard.editDialog.cancel}
+      />
+
+      <div className="relative z-10 flex w-full max-w-lg flex-col rounded-xl border bg-background shadow-xl my-8 max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b p-5">
+          <div className="space-y-1">
+            <h2 id={titleId} className="text-lg font-semibold">
+              {tEdit.title}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {item.fullName}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPending}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            aria-label={tEdit.cancel}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-4">
+          
+          {/* Status Select */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-status">{tEdit.statusLabel}</Label>
+            <Select
+              value={status}
+              onValueChange={(val) => setStatus(val as DisplacedStatus)}
+            >
+              <SelectTrigger id="edit-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PENDING">{t.status.PENDING}</SelectItem>
+                <SelectItem value="APPROVED">{t.status.APPROVED}</SelectItem>
+                <SelectItem value="REJECTED">{t.status.REJECTED}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Full Name */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-fullname">{tEdit.fullNameLabel}</Label>
+            <Input
+              id="edit-fullname"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={isPending}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Phone */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">{tEdit.phoneLabel}</Label>
+              <Input
+                id="edit-phone"
+                required
+                dir="ltr"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+
+            {/* Alternate Phone */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-alt-phone">{t.form.alternatePhoneLabel}</Label>
+              <Input
+                id="edit-alt-phone"
+                dir="ltr"
+                value={alternatePhone}
+                onChange={(e) => setAlternatePhone(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Family Members Count */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-count">{tEdit.familyMembersLabel}</Label>
+              <Input
+                id="edit-count"
+                type="number"
+                min={1}
+                max={50}
+                required
+                value={familyMembersCount}
+                onChange={(e) => setFamilyMembersCount(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+
+            {/* Origin City / Village */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-origin">{tEdit.originLabel}</Label>
+              <Input
+                id="edit-origin"
+                required
+                value={audience === 'syrian' ? originalCity : originVillage}
+                onChange={(e) =>
+                  audience === 'syrian'
+                    ? setOriginalCity(e.target.value)
+                    : setOriginVillage(e.target.value)
+                }
+                disabled={isPending}
+              />
+            </div>
+          </div>
+
+          {/* Family Members Names */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-familynames">{tEdit.familyMembersNamesLabel}</Label>
+            <Textarea
+              id="edit-familynames"
+              required
+              rows={3}
+              value={familyMembersNames}
+              onChange={(e) => setFamilyMembersNames(e.target.value)}
+              disabled={isPending}
+            />
+          </div>
+
+          {/* Vulnerability status (optional multi-select) */}
+          <div className="space-y-2">
+            <Label>{t.form.vulnerabilityLabel}</Label>
+            <div className="flex flex-wrap gap-2">
+              {VULNERABILITIES.map((flag) => {
+                const selected = vulnerabilities.includes(flag);
+                return (
+                  <button
+                    key={flag}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleVulnerability(flag)}
+                    disabled={isPending}
+                    className={
+                      'rounded-full border-2 px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ' +
+                      (selected
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-input bg-background hover:bg-accent')
+                    }
+                  >
+                    {t.vulnerabilities[flag]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Current location */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-neighborhood">{t.form.neighborhoodLabel}</Label>
+              <Input
+                id="edit-neighborhood"
+                value={neighborhoodName}
+                onChange={(e) => setNeighborhoodName(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-building">{t.form.buildingLabel}</Label>
+              <Input
+                id="edit-building"
+                value={buildingName}
+                onChange={(e) => setBuildingName(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+          </div>
+
+          {/* Shelter Type (both audiences) */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-sheltertype">{tEdit.shelterTypeLabel}</Label>
+            <Select
+              value={shelterType}
+              onValueChange={(val) => setShelterType(val as ShelterType)}
+            >
+              <SelectTrigger id="edit-sheltertype">
+                <SelectValue placeholder={t.form.shelterTypePlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {shelterOptions.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {t.shelterTypes[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Shelter contact — name + phone, for every type but informal settlement */}
+          {needsContact && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-contact-name">
+                  {t.shelterContact[shelterType].nameLabel}
+                </Label>
+                <Input
+                  id="edit-contact-name"
+                  value={shelterContactName}
+                  onChange={(e) => setShelterContactName(e.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-contact-phone">
+                  {t.shelterContact[shelterType].phoneLabel}
+                </Label>
+                <Input
+                  id="edit-contact-phone"
+                  dir="ltr"
+                  value={shelterContactPhone}
+                  onChange={(e) => setShelterContactPhone(e.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Syrian Specific Fields */}
+          {audience === 'syrian' && (
+            <div className="grid grid-cols-2 gap-4">
+              {/* Registration Number */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-regnumber">{tEdit.registrationNumberLabel}</Label>
+                <Input
+                  id="edit-regnumber"
+                  value={registrationNumber}
+                  onChange={(e) => setRegistrationNumber(e.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+
+              {/* Entry Date */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-entrydate">{tEdit.entryDateLabel}</Label>
+                <DatePicker
+                  id="edit-entrydate"
+                  locale={locale}
+                  value={entryDate}
+                  onChange={setEntryDate}
+                  placeholder={tEdit.entryDateLabel}
+                  disabled={isPending}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Lebanese Specific Fields */}
+          {audience === 'lebanese' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Income */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-income">{tEdit.incomeLabel}</Label>
+                  <Input
+                    id="edit-income"
+                    value={primarySourceOfIncome}
+                    onChange={(e) => setPrimarySourceOfIncome(e.target.value)}
+                    disabled={isPending}
+                  />
+                </div>
+
+                {/* Displacement Date */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-displacementdate">{tEdit.displacementDateLabel}</Label>
+                  <DatePicker
+                    id="edit-displacementdate"
+                    locale={locale}
+                    value={displacementDate}
+                    onChange={setDisplacementDate}
+                    placeholder={tEdit.displacementDateLabel}
+                    disabled={isPending}
+                  />
+                </div>
+              </div>
+
+              {/* Property Damaged Checkbox */}
+              <div className="flex items-center space-x-2 py-2">
+                <input
+                  id="edit-damaged"
+                  type="checkbox"
+                  checked={isPropertyDamaged}
+                  onChange={(e) => setIsPropertyDamaged(e.target.checked)}
+                  disabled={isPending}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="edit-damaged" className="cursor-pointer select-none">
+                  {tEdit.isPropertyDamagedLabel}
+                </Label>
+              </div>
+            </>
+          )}
+
+          {/*
+            ID documents: a list, one row per document, each with only
+            two buttons (View, Delete) — that cap keeps every row inside
+            the dialog's width no matter how many documents exist. Adding
+            new ones is a single control below the list, decoupled from
+            any individual row so it never grows a row past two buttons.
+          */}
+          <div className="space-y-2">
+            <Label>{tEdit.idDocumentsLabel}</Label>
+            {idDocumentUrls.length > 0 ? (
+              <ul className="space-y-2">
+                {idDocumentUrls.map((url, index) => (
+                  <li
+                    key={url}
+                    className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
+                        <FileText className="h-4 w-4" />
+                      </span>
+                      <span className="truncate text-sm font-medium">
+                        {fill(tEdit.documentLabel, { index: index + 1 })}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setViewerTitle(
+                            fill(tEdit.documentLabel, { index: index + 1 }),
+                          );
+                          setViewerUrl(url);
+                        }}
+                      >
+                        {tEdit.viewId}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => void handleDeleteFile(url)}
+                        disabled={isPending}
+                        aria-label={tEdit.deleteId}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                {tEdit.noDocumentsYet}
+              </p>
+            )}
+            <input
+              ref={addDocumentInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              className="hidden"
+              onChange={(event) => void handleUploadFiles(event)}
+              disabled={isPending}
+            />
+            {idDocumentUrls.length < MAX_ID_DOCUMENTS_PER_REGISTRATION ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={isPending}
+                onClick={() => addDocumentInputRef.current?.click()}
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {uploadIdMutation.isPending ? tEdit.uploading : tEdit.uploadId}
+              </Button>
+            ) : null}
+          </div>
+
+          {error && (
+            <p className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-2.5 text-sm text-destructive">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </p>
+          )}
+
+          {/* Action buttons inside form */}
+          <div className="flex justify-end gap-2 border-t pt-5 mt-6">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              disabled={isPending}
+            >
+              {tEdit.cancel}
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {tEdit.save}
+            </Button>
+          </div>
+
+        </form>
+
+      </div>
+
+      <DocumentViewerDialog
+        dict={dict}
+        url={viewerUrl}
+        title={viewerTitle}
+        onClose={() => setViewerUrl(null)}
+      />
+    </div>
+  );
+}

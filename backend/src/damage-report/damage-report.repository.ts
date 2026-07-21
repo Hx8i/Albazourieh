@@ -9,7 +9,6 @@ import {
   PropertyType,
   ReportStatus,
 } from '../generated/prisma/client';
-import { DuplicatePropertyNumberError } from '../common/errors/domain.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportSortField, SortDirection } from './damage-report.dto';
 import { generateReferenceCode } from './reference-code';
@@ -33,6 +32,7 @@ const reportWithRelations = {
         street: true,
         projectName: true,
         floor: true,
+        unitArea: true,
         additionalDirections: true,
         addressLine: true,
         latitude: true,
@@ -48,6 +48,29 @@ const reportWithRelations = {
 export type DamageReportWithRelations = Prisma.DamageReportGetPayload<
   typeof reportWithRelations
 >;
+
+/**
+ * Overlays this report's own reporter-name/phone overrides (set via admin
+ * edits, see `updateReportData`) onto the shared reporter's display
+ * fields — so a correction made on one report is never mistaken for a
+ * change to the citizen's account and never appears on their other
+ * reports.
+ */
+function applyReporterOverrides(
+  report: DamageReportWithRelations,
+): DamageReportWithRelations {
+  if (!report.reporterNameOverride && !report.reporterPhoneOverride) {
+    return report;
+  }
+  return {
+    ...report,
+    reporter: {
+      ...report.reporter,
+      fullName: report.reporterNameOverride ?? report.reporter.fullName,
+      phoneNumber: report.reporterPhoneOverride ?? report.reporter.phoneNumber,
+    },
+  };
+}
 
 /** How many fresh codes to try before giving up on a pathological run. */
 const MAX_REFERENCE_CODE_ATTEMPTS = 5;
@@ -115,6 +138,7 @@ export interface PersistReportInput {
     street?: string;
     projectName?: string;
     floor?: string;
+    unitArea?: number;
     additionalDirections?: string;
     addressLine?: string;
     latitude: number;
@@ -159,6 +183,7 @@ export interface PublicReportStatus {
   category: PropertyType;
   /** ISO-8601 submission timestamp. */
   submittedAt: string;
+  rejectedField?: string | null;
 }
 
 /** Minimal payload shaped for direct deck.gl layer ingestion. */
@@ -192,12 +217,8 @@ export class DamageReportRepository {
 
   /** True when a property with this official number is already filed. */
   async propertyNumberExists(realEstateNumber: string): Promise<boolean> {
-    const count = await this.prisma.property.count({
-      where: {
-        realEstateNumber: { equals: realEstateNumber, mode: 'insensitive' },
-      },
-    });
-    return count > 0;
+    // Relaxation: official property numbers are no longer unique.
+    return false;
   }
 
   /**
@@ -230,22 +251,8 @@ export class DamageReportRepository {
     referenceCode: string,
   ): Promise<DamageReportWithRelations> {
     return this.prisma.$transaction(async (tx) => {
-      if (input.enforceUniquePropertyNumber && input.property.realEstateNumber) {
-        const duplicate = await tx.property.findFirst({
-          where: {
-            realEstateNumber: {
-              equals: input.property.realEstateNumber,
-              mode: 'insensitive',
-            },
-          },
-          select: { id: true },
-        });
-        if (duplicate) {
-          throw new DuplicatePropertyNumberError(
-            input.property.realEstateNumber,
-          );
-        }
-      }
+      // Relaxation: official property numbers are no longer unique.
+      // Uniqueness check block removed to allow duplicate submissions.
 
       const user = await tx.user.upsert({
         where: { phoneNumber: input.reporter.phoneNumber },
@@ -270,6 +277,7 @@ export class DamageReportRepository {
           street: input.property.street,
           projectName: input.property.projectName,
           floor: input.property.floor,
+          unitArea: input.property.unitArea,
           additionalDirections: input.property.additionalDirections,
           addressLine: input.property.addressLine,
           latitude: input.property.latitude,
@@ -308,10 +316,11 @@ export class DamageReportRepository {
   }
 
   async findById(id: string): Promise<DamageReportWithRelations | null> {
-    return this.prisma.damageReport.findUnique({
+    const report = await this.prisma.damageReport.findUnique({
       where: { id },
       ...reportWithRelations,
     });
+    return report ? applyReporterOverrides(report) : null;
   }
 
   /**
@@ -328,6 +337,7 @@ export class DamageReportRepository {
         referenceCode: true,
         status: true,
         createdAt: true,
+        rejectedField: true,
         property: { select: { type: true } },
       },
     });
@@ -337,6 +347,7 @@ export class DamageReportRepository {
       status: row.status,
       category: row.property.type,
       submittedAt: row.createdAt.toISOString(),
+      rejectedField: row.rejectedField,
     };
   }
 
@@ -356,7 +367,10 @@ export class DamageReportRepository {
 
     if (filter.search) {
       // One input, four identifying fields — a report matches when any
-      // of them contains the term (case-insensitively).
+      // of them contains the term (case-insensitively). Reporter name/
+      // phone are matched on both the shared account and this report's
+      // own override (see applyReporterOverrides), so a search still
+      // finds a report by its corrected display name/phone.
       where.OR = [
         { referenceCode: { contains: filter.search, mode: 'insensitive' } },
         {
@@ -365,6 +379,10 @@ export class DamageReportRepository {
           },
         },
         { reporter: { phoneNumber: { contains: filter.search } } },
+        {
+          reporterNameOverride: { contains: filter.search, mode: 'insensitive' },
+        },
+        { reporterPhoneOverride: { contains: filter.search } },
         {
           property: {
             realEstateNumber: { contains: filter.search, mode: 'insensitive' },
@@ -394,7 +412,7 @@ export class DamageReportRepository {
     );
 
     return {
-      items,
+      items: items.map(applyReporterOverrides),
       totalCount,
       totalPages: Math.max(1, Math.ceil(totalCount / filter.pageSize)),
       currentPage: filter.page,
@@ -406,13 +424,134 @@ export class DamageReportRepository {
     id: string,
     status: ReportStatus,
     rejectionReason: string | null,
+    rejectedField: string | null,
     reviewedById: string | null,
   ): Promise<DamageReport> {
     return this.prisma.damageReport.update({
       where: { id },
-      data: { status, rejectionReason, reviewedById },
+      data: { status, rejectionReason, rejectedField, reviewedById },
     });
   }
+
+  // ──────────── Admin report data editing ────────────
+
+  /** Field-level partial updates on the reporter, property, and report. */
+  async updateReportData(
+    reportId: string,
+    reporterUpdates: Partial<{ fullName: string; phoneNumber: string }>,
+    propertyUpdates: Partial<{
+      street: string;
+      projectName: string;
+      floor: string;
+      unitArea: number;
+      additionalDirections: string;
+      realEstateNumber: string;
+      ownerPhoneNumber: string;
+      latitude: number;
+      longitude: number;
+    }>,
+    reportUpdates: Partial<{ description: string }>,
+  ): Promise<DamageReportWithRelations> {
+    const report = await this.prisma.damageReport.findUniqueOrThrow({
+      where: { id: reportId },
+      select: { propertyId: true },
+    });
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Reporter name/phone corrections are stored as an override on
+      // THIS report, never written to the shared User row — the same
+      // phone number can be the reporter on several reports, and
+      // "fixing a typo" here must not relabel/renumber the others (or
+      // collide with another citizen's unique phone number).
+      const damageReportData: Record<string, unknown> = { ...reportUpdates };
+      if (reporterUpdates.fullName !== undefined) {
+        damageReportData.reporterNameOverride = reporterUpdates.fullName;
+      }
+      if (reporterUpdates.phoneNumber !== undefined) {
+        damageReportData.reporterPhoneOverride = reporterUpdates.phoneNumber;
+      }
+      if (Object.keys(damageReportData).length > 0) {
+        await tx.damageReport.update({
+          where: { id: reportId },
+          data: damageReportData,
+        });
+      }
+      if (Object.keys(propertyUpdates).length > 0) {
+        // Sync neighborhood with street when street changes.
+        const propData: Record<string, unknown> = { ...propertyUpdates };
+        if (propertyUpdates.street) {
+          propData.neighborhood = propertyUpdates.street;
+        }
+        await tx.property.update({
+          where: { id: report.propertyId },
+          data: propData,
+        });
+      }
+
+      return tx.damageReport.findUniqueOrThrow({
+        where: { id: reportId },
+        ...reportWithRelations,
+      });
+    }, { timeout: 30000, maxWait: 30000 });
+
+    return applyReporterOverrides(updated);
+  }
+
+  /** Replace an attachment row: delete old, create new in a transaction. */
+  async replaceAttachment(
+    reportId: string,
+    oldAttachmentId: string,
+    newData: {
+      url: string;
+      type: AttachmentType;
+      label?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+    },
+  ): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.attachment.delete({ where: { id: oldAttachmentId } }),
+      this.prisma.attachment.create({
+        data: {
+          reportId,
+          url: newData.url,
+          type: newData.type,
+          label: newData.label,
+          mimeType: newData.mimeType,
+          sizeBytes: newData.sizeBytes,
+        },
+      }),
+    ]);
+  }
+
+  /** Remove an attachment by id. */
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    await this.prisma.attachment.delete({ where: { id: attachmentId } });
+  }
+
+  /** Add a new attachment to a report. */
+  async addAttachment(
+    reportId: string,
+    data: {
+      url: string;
+      type: AttachmentType;
+      label?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+    },
+  ): Promise<Prisma.AttachmentGetPayload<null>> {
+    return this.prisma.attachment.create({
+      data: {
+        reportId,
+        url: data.url,
+        type: data.type,
+        label: data.label,
+        mimeType: data.mimeType,
+        sizeBytes: data.sizeBytes,
+      },
+    });
+  }
+
 
   /**
    * Slim spatial slice for the map dashboard: one indexed query with a
