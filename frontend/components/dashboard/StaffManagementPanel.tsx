@@ -146,7 +146,7 @@ export function StaffManagementPanel({
         meta: { cellClassName: 'font-medium' },
         cell: ({ row }) => (
           <span className="inline-flex items-center gap-2">
-            {row.original.fullName}
+            <span dir="auto">{row.original.fullName}</span>
             {row.original.id === currentUserId ? (
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 {t.youBadge}
@@ -159,7 +159,11 @@ export function StaffManagementPanel({
         id: 'email',
         accessorFn: (row) => row.email,
         header: t.colEmail,
-        cell: ({ row }) => <span dir="ltr">{row.original.email}</span>,
+        cell: ({ row }) => (
+          <span className="inline-block" dir="ltr">
+            {row.original.email}
+          </span>
+        ),
       },
       {
         id: 'role',

@@ -107,6 +107,7 @@ export function AuditTrailPanel({
         accessorFn: (row) => row.adminName,
         header: t.colAdmin,
         meta: { cellClassName: 'font-medium' },
+        cell: ({ row }) => <span dir="auto">{row.original.adminName}</span>,
       },
       {
         id: 'actionType',
@@ -129,7 +130,9 @@ export function AuditTrailPanel({
         enableSorting: false,
         meta: { cellClassName: 'font-mono text-xs' },
         cell: ({ row }) => (
-          <span dir="ltr">{targetLabel(row.original)}</span>
+          <span className="inline-block" dir="ltr">
+            {targetLabel(row.original)}
+          </span>
         ),
       },
       {
