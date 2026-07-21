@@ -323,7 +323,7 @@ export function DataTable<TData, TValue = unknown>({
       ) : (
         <div className="max-h-[70vh] overflow-auto rounded-lg border">
           <Table>
-            <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_hsl(var(--border))]">
+            <TableHeader className="sticky top-0 z-10 bg-muted/60 shadow-[inset_0_-1px_0_hsl(var(--border))] backdrop-blur supports-[backdrop-filter]:bg-muted/50">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="hover:bg-transparent">
                   {headerGroup.headers.map((header) => {
@@ -381,7 +381,10 @@ export function DataTable<TData, TValue = unknown>({
               <TableBody className={loading ? 'opacity-60 transition-opacity' : ''}>
                 {rows.map((row) => (
                   <React.Fragment key={row.id}>
-                    <TableRow data-state={row.getIsExpanded() ? 'selected' : undefined}>
+                    <TableRow
+                      data-state={row.getIsExpanded() ? 'selected' : undefined}
+                      className={row.index % 2 === 1 ? 'bg-muted/25' : undefined}
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
                           key={cell.id}
