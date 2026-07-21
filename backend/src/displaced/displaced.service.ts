@@ -423,19 +423,20 @@ export class DisplacedService {
 
     if (outcome.removed) {
       await this.uploads.deleteEvidence(url);
+
+      await this.audit.record({
+        adminId: reviewer.id,
+        adminName: reviewer.name,
+        actionType: 'UPDATE_DISPLACED_REGISTRATION',
+        targetId: id,
+        details: `Deleted an ID document for ${AUDIENCE_LABEL[audience].en} "${outcome.fullName}"`,
+        detailsAr: `حذف مستند هوية لـ ${AUDIENCE_LABEL[audience].ar} "${outcome.fullName}"`,
+        ipAddress: reviewer.ipAddress,
+      });
+
+      this.cache.invalidatePrefix(CACHE_PREFIX[audience]);
     }
 
-    await this.audit.record({
-      adminId: reviewer.id,
-      adminName: reviewer.name,
-      actionType: 'UPDATE_DISPLACED_REGISTRATION',
-      targetId: id,
-      details: `Deleted an ID document for ${AUDIENCE_LABEL[audience].en} "${outcome.fullName}"`,
-      detailsAr: `حذف مستند هوية لـ ${AUDIENCE_LABEL[audience].ar} "${outcome.fullName}"`,
-      ipAddress: reviewer.ipAddress,
-    });
-
-    this.cache.invalidatePrefix(CACHE_PREFIX[audience]);
     return outcome.finalUrls;
   }
 

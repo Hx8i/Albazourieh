@@ -375,7 +375,7 @@ export function useUpdateSyrianDisplacedMutation() {
       payload,
     }: {
       id: string;
-      payload: Partial<CreateSyrianDisplacedPayload> & { status?: DisplacedStatus };
+      payload: Partial<CreateSyrianDisplacedPayload>;
     }) => unwrap(updateSyrianDisplaced(id, payload)),
     onSuccess: () => {
       void queryClient.invalidateQueries({
@@ -394,7 +394,7 @@ export function useUpdateLebaneseDisplacedMutation() {
       payload,
     }: {
       id: string;
-      payload: Partial<CreateLebaneseDisplacedPayload> & { status?: DisplacedStatus };
+      payload: Partial<CreateLebaneseDisplacedPayload>;
     }) => unwrap(updateLebaneseDisplaced(id, payload)),
     onSuccess: () => {
       void queryClient.invalidateQueries({

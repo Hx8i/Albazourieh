@@ -193,22 +193,19 @@ export type CreateLebaneseDisplacedDto = z.infer<
   typeof createLebaneseDisplacedSchema
 >;
 
-// Updates are partial (staff edit any subset) and carry an optional status.
+// Updates are partial (staff edit any subset). Status is deliberately NOT
+// editable here — it only moves through the dedicated status endpoint
+// (`updateDisplacedStatusSchema` below) so every status change gets the
+// UPDATE_DISPLACED_STATUS audit trail rather than a generic-edit diff line.
 // The landlord rule isn't re-checked here: an edit that changes only, say,
 // the phone must not fail because it didn't resend an already-stored
 // landlordPhone — the create path already guaranteed the invariant.
-export const updateSyrianDisplacedSchema = syrianIntakeObject
-  .partial()
-  .extend({ status: displacedStatusSchema.optional() })
-  .strict();
+export const updateSyrianDisplacedSchema = syrianIntakeObject.partial().strict();
 export type UpdateSyrianDisplacedDto = z.infer<
   typeof updateSyrianDisplacedSchema
 >;
 
-export const updateLebaneseDisplacedSchema = lebaneseIntakeObject
-  .partial()
-  .extend({ status: displacedStatusSchema.optional() })
-  .strict();
+export const updateLebaneseDisplacedSchema = lebaneseIntakeObject.partial().strict();
 export type UpdateLebaneseDisplacedDto = z.infer<
   typeof updateLebaneseDisplacedSchema
 >;

@@ -32,6 +32,7 @@ import {
   Vulnerability,
 } from '@/lib/schemas/displaced.schema';
 import {
+  useUpdateDisplacedStatusMutation,
   useUpdateLebaneseDisplacedMutation,
   useUpdateSyrianDisplacedMutation,
   useUploadDisplacedIdDocumentsMutation,
@@ -61,6 +62,7 @@ export function DisplacedEditDialog({
 
   const updateSyrian = useUpdateSyrianDisplacedMutation();
   const updateLebanese = useUpdateLebaneseDisplacedMutation();
+  const updateStatus = useUpdateDisplacedStatusMutation(audience);
   const uploadIdMutation = useUploadDisplacedIdDocumentsMutation(audience);
   const deleteIdMutation = useDeleteDisplacedIdDocumentMutation(audience);
   const addDocumentInputRef = React.useRef<HTMLInputElement>(null);
@@ -71,6 +73,7 @@ export function DisplacedEditDialog({
   const isPending =
     updateSyrian.isPending ||
     updateLebanese.isPending ||
+    updateStatus.isPending ||
     uploadIdMutation.isPending ||
     deleteIdMutation.isPending;
 
@@ -245,7 +248,6 @@ export function DisplacedEditDialog({
         ? shelterContactPhone.trim() || undefined
         : undefined,
       vulnerabilityStatus: vulnerabilities,
-      status,
     };
 
     try {
@@ -268,6 +270,11 @@ export function DisplacedEditDialog({
           displacementDate: displacementDate || undefined,
         };
         await updateLebanese.mutateAsync({ id: item.id, payload });
+      }
+      // Status moves through the dedicated status endpoint (its own audit
+      // action + trail entry) rather than the generic edit payload.
+      if (status !== item.status) {
+        await updateStatus.mutateAsync({ id: item.id, status });
       }
       onClose();
     } catch (err: any) {

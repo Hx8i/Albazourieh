@@ -387,7 +387,7 @@ export function updateDisplacedStatus(
 /** Update a displaced registration (Syrian). */
 export function updateSyrianDisplaced(
   id: string,
-  payload: Partial<CreateSyrianDisplacedPayload> & { status?: DisplacedStatus },
+  payload: Partial<CreateSyrianDisplacedPayload>,
 ): Promise<ApiResult<SyrianDisplacedItem>> {
   return request<SyrianDisplacedItem>(
     `/displaced/syrian/${id}`,
@@ -399,7 +399,7 @@ export function updateSyrianDisplaced(
 /** Update a displaced registration (Lebanese). */
 export function updateLebaneseDisplaced(
   id: string,
-  payload: Partial<CreateLebaneseDisplacedPayload> & { status?: DisplacedStatus },
+  payload: Partial<CreateLebaneseDisplacedPayload>,
 ): Promise<ApiResult<LebaneseDisplacedItem>> {
   return request<LebaneseDisplacedItem>(
     `/displaced/lebanese/${id}`,
